@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from distutils.log import error
-import sys, cmd, time
+import sys, cmd, time, getpass, hashlib
 import Ice
 try:
     import IceFlix
@@ -44,8 +44,24 @@ class Client(Ice.Application):
         else:
             print("Connected to the mainService.")
 
-    #def autenthicate(self):
-
+    def autenthicate(self, mainService):
+        if self.token!="":
+            print("Error. You are loggin in. \n")
+        else:
+            print("Please introduce your username")
+            username=input()
+            password= getpass.getpass(prompt="Now, enter your password:")
+            hash_password = hashlib.sha256(password.encode()).hexdigest()
+            if username=="" or password=="":
+                print("Unexpected error has ocurred. You should introduce a username and a password")
+            else:
+                try:
+                    authenticator = mainService.getAuthenticator()
+                    self.token = authenticator.refreshAuthorization(username,hash_password)
+                except IceFlix.Unauthorized:
+                    print("Unathorized user. \n")
+                except:
+                    print("Unexpected error has ocurred.")
 
 
 
@@ -60,7 +76,7 @@ class ClientShell(cmd.Cmd):
         # print('Please introduce the proxy of the main service. \n ')
         # proxyMain=input
         # cliente= Client.connect(self,proxyMain)
-        
+        UserShell.cmdloop
 
 
 
@@ -75,6 +91,14 @@ class ClientShell(cmd.Cmd):
         print('Thank you for using IceFlix Client')
         return True
 
+class UserShell(cmd.Cmd):
+    intro = 'Welcome to the user shell. Type help or ? to list commands.\n'
+    prompt= '(user) '
+
+    def do_exit(self, arg):
+        'Close the client and EXIT.'
+        print('Thank you for using IceFlix Client')
+        return True
 
 
 if __name__ == '__main__':
