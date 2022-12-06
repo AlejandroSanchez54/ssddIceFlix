@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 from distutils.log import error
-import sys, cmd
+import sys, cmd, time
 import Ice
 try:
     import IceFlix
@@ -9,22 +9,42 @@ except ImportError:
 
 
 
+
+
 class Client(Ice.Application):
     def __init__(self):
         self.token=""
 
-    def run(self, argv):
-        broker = self.communicator()
-        Client.authenticate(self,argv[1])
+    def run(self,argv):
 
-    def connect(self, proxyMain):
+        proxyMainString= input
+        
 
-        proxy= self.communicator().stringToProxy(proxyMain)
-        print(proxy)
+    def connect(self):
+        print("Please enter the proxy of the main service: \n")
+        tries=0
+        proxyMainString=input
+        proxyMain= self.communicator().stringToProxy(proxyMainString)
 
-        # while(i<3):
-        #     try:
+        while tries<3:
+            print("Trying to connect with MainService. Please wait... ")
+            try:       
+                mainService = IceFlix.MainPrx.checkedCast(proxyMain)
+                tries=3
+            except IceFlix.TemporaryUnavailable as unavailable:
+                print("Main Service is TemporaryUnavailable.")
+                time.sleep(5.0)
+                #raise IceFlix.TemporaryUnavailable() from unavailable
+            except:
+                print("Unknown error. Please stay sure you introduce the correct proxy.")
 
+            tries= tries + 1
+        if not mainService:
+            raise RuntimeError('Invalid proxy')
+        else:
+            print("Connected to the mainService.")
+
+    #def autenthicate(self):
 
 
 
@@ -37,9 +57,9 @@ class ClientShell(cmd.Cmd):
     def do_connect(self,arg):
         'Connection of Client or Administrator'
         print('Authenticating')
-        print('Please introduce the proxy of the main service. \n ')
-        proxyMain= input()
-        Client.main(self,proxyMain)
+        # print('Please introduce the proxy of the main service. \n ')
+        # proxyMain=input
+        # cliente= Client.connect(self,proxyMain)
         
 
 
@@ -47,7 +67,7 @@ class ClientShell(cmd.Cmd):
 
     def do_anonimousSearch(self,arg):
         'Client or Administrator authentication'
-        print('DOing search')
+        print('Doing search')
 
 
     def do_exit(self, arg):
