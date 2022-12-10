@@ -2,13 +2,53 @@
 from distutils.log import error
 import sys, cmd, time, getpass, hashlib
 import Ice
+import threading
 
 try:
-    import IceFlix
+    import IceFlix  # pylint:disable=import-error
+
 except ImportError:
-    Ice.loadSlice("iceflix.ice")
+    import os
+    Ice.loadSlice(os.path.join(os.path.dirname(__file__),"iceflix.ice"))
+    import IceFlix
+
+class ClientShell(cmd.Cmd):
+    def __init__(self,mainService):
+        self.intro = 'WELCOME to Iceflix Application. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
+        self.prompt= '(IceFLix): '
+        self.mainService = mainService
+        super(ClientShell,self).__init__()
+    
+
+    def do_connect(self,arg):
+        'Connection of Client or Administrator'
+        print('Connecting to the Main Service...')
+        # print('Please introduce the proxy of the main service. \n ')
+        # proxyMain=input
+        # cliente= Client.connect(self,proxyMain)
+        
+        #if(cliente.connect()==True):
+            #if(cliente.autenthicate(self, self.mainService)==True):
+        
+        opcion=input()
+        if opcion == "uno":
+            sub_client= UserShell()
+            sub_client.cmdloop()
+        else:
+            sub_administrador= AdministratorShell()
+            sub_administrador.cmdloop()
 
 
+
+
+    def do_anonimousSearch(self,arg):
+        'Anonimous search by name'
+
+
+    def do_exit(self, arg):
+        'Close IceFLix and EXIT.'
+        print('\nThank you for using IceFlix application. Come back soon !!! <3 \n')
+        return True
 
 
 
@@ -20,7 +60,17 @@ class Client(Ice.Application):
 
     def run(self,argv):
 
-        proxyMainString = input()
+        self.connect()
+        cliente_shell= ClientShell(self.mainService)
+        print(cliente_shell.mainService)
+        threading.Thread(name ='cliente_shell', target = cliente_shell.cmdloop())
+        
+
+
+        
+
+
+
         
 
     def connect(self):
@@ -29,23 +79,31 @@ class Client(Ice.Application):
         proxyMainString = input()
         broker = self.communicator()
         proxyMain = broker.stringToProxy(proxyMainString)
-        
+            
 
         while tries<3:
             print("Trying to connect with MainService. Please wait... ")
             try:       
-                mainService = IceFlix.MainPrx.checkedCast(proxyMain)
+                self.mainService = IceFlix.MainPrx.checkedCast(proxyMain)
+                print("AQUI")
+                if self.mainService:
+                    print("Success connected")
+                    break
+                else:
+                    time.sleep(5.0)
+                    print("waiting...")
+                         
                 tries = 3
-                return True
+                    
             except IceFlix.TemporaryUnavailable:
                 print("Main Service is TemporaryUnavailable.")
                 time.sleep(5.0)
-                #raise IceFlix.TemporaryUnavailable() from unavailable
-            except:
-                print("Unknown error. Please stay sure you introduce the correct proxy.")
+                    #raise IceFlix.TemporaryUnavailable() from unavailable
+                # except:
+                #     print("Unknown error. Please stay sure you introduce the correct proxy.")
 
             tries= tries + 1
-        if not mainService:
+        if not self.mainService:
             raise RuntimeError('Invalid proxy')
         else:
             print("Connected to the mainService.")
@@ -255,10 +313,12 @@ class AdministratorShell(cmd.Cmd):
         print('\nClosed IceFlix Administrator Interface.\n')
         return True
 class UserShell(cmd.Cmd):
-    # def __init__(self, *args):
-    #     super().__init__(*args)
-    intro = '\nYou are logged into IceFLix User Interface. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
-    prompt= '(User): '
+    def __init__(self,name):
+        self.intro = '\nYou are logged into IceFLix User Interface. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
+        self.prompt= '(User): '
+        self.name= name
+        super(UserShell,self).__init__()
+
 
     def do_search_by_name(self, arg):
         'Search a media in the catalog by name.'
@@ -284,45 +344,11 @@ class UserShell(cmd.Cmd):
 
 
 
-class ClientShell(cmd.Cmd):
-    # def __init__(self, *args):
-    #     super().__init__(*args)
-    intro = 'WELCOME to Iceflix Application. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
-    prompt= '(IceFLix): '
-    
 
-    def do_connect(self,arg):
-        'Connection of Client or Administrator'
-        print('Connecting to the Main Service...')
-        # print('Please introduce the proxy of the main service. \n ')
-        # proxyMain=input
-        # cliente= Client.connect(self,proxyMain)
-        cliente= Client()
-        
-        #if(cliente.connect()==True):
-            #if(cliente.autenthicate(self, self.mainService)==True):
-        
-        opcion=input()
-        if opcion == "uno":
-            sub_client= UserShell()
-            sub_client.cmdloop()
-        else:
-            sub_administrador= AdministratorShell()
-            sub_administrador.cmdloop()
-
-
-
-
-    def do_anonimousSearch(self,arg):
-        'Anonimous search by name'
-
-
-    def do_exit(self, arg):
-        'Close IceFLix and EXIT.'
-        print('\nThank you for using IceFlix application. Come back soon !!! <3 \n')
-        return True
 
 if __name__ == '__main__':
 
-    root=ClientShell()
-    root.cmdloop()
+    #alex=input()
+    #user= UserShell(alex)
+    #threading.Thread(name='user_shell', target= user.cmdloop())
+    sys.exit(Client().main(sys.argv))
