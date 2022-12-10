@@ -14,20 +14,22 @@ except ImportError:
 
 
 class FileUploader(IceFlix.FileUploader):
-    def receive(self, size, userToken):
-
-        print("")
-
-
-    def close(self, userToken): 
-        print("")
+    
+    def _init_(self, fichero):
+        self.cont_file = open(fichero, "rb")
+    def receive(self, size, current=None):
+        return self.cont_file.read(self.size)   
+    def close(self, current=None): 
+        self.cont_file.close()
+        
 
 class AdministratorShell(cmd.Cmd):
-    def __init__(self, mainService):
+    def __init__(self, mainService,fileUploader):
         self.intro = '\nYou are logged into IceFLix Administrator Interface. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt= '(Administrator): '
         self.mainService = mainService
         self.token=""
+        self.fileUploader=fileUploader
         super(AdministratorShell,self).__init__()
 
 
@@ -112,11 +114,12 @@ class AdministratorShell(cmd.Cmd):
         return True
 
 class UserShell(cmd.Cmd):
-    def __init__(self,mainService, token):
+    def __init__(self,mainService, token,fileUploader):
         self.intro = '\nYou are logged into IceFLix User Interface. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt= '(User): '
         self.mainService = mainService
         self.token = token
+        self.fileUploader = fileUploader
         super(UserShell,self).__init__()
 
 
@@ -213,11 +216,12 @@ class UserShell(cmd.Cmd):
 
 
 class ClientShell(cmd.Cmd):
-    def __init__(self,mainService):
+    def __init__(self,mainService, fileUploader):
         self.intro = 'WELCOME to Iceflix Application. Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt= '(IceFLix): '
         self.mainService = mainService
         self.token=""
+        self.fileUploader=fileUploader
         super(ClientShell,self).__init__()
     
 
@@ -241,7 +245,7 @@ class ClientShell(cmd.Cmd):
                         self.token = authenticator.refreshAuthorization(username,hash_password)
                         if authenticator.isAuthorized(self.token):
                             print("LOGIN SUCCESFULL")
-                            user_shell= UserShell(self.mainService, self.token)
+                            user_shell= UserShell(self.mainService, self.token, self.fileUploader)
                             user_shell.cmdloop()
                     
                     return True
@@ -263,7 +267,7 @@ class ClientShell(cmd.Cmd):
                     print(authenticator.isAdmin(admin_token))
                     if authenticator.isAdmin(admin_token):
                         print("Successful administrator authentication.\n")
-                        admin_shell=AdministratorShell(self.mainService)
+                        admin_shell=AdministratorShell(self.mainService, self.fileUploader)
                         admin_shell.cmdloop()
                     else:
                         print("Not successful administrator authentication")
@@ -296,16 +300,23 @@ class Client(Ice.Application):
         self.token = ""
         self.media = []
         self.mainService= None
-        #self.broker = None
+        
 
     def run(self,argv):
 
+        broker= self.communicator()
+        servant= FileUploader()
+        adapter= broker.createObjectAdapterWithEndpoints("FileUploaderAdapter", "tcp -p 9090")
+        proxy_fileuploader = adapter.add(servant, broker.stringToIdentity("fileuploader1"))
+        proxy_fileuploader = IceFlix.FileUploaderPrx.uncheckedCast(proxy_fileuploader)
+        adapter.activate()
         self.connect()
-        cliente_shell= ClientShell(self.mainService)
+        cliente_shell= ClientShell(self.mainService, proxy_fileuploader)
         print(cliente_shell.mainService)
         threading.Thread(name ='cliente_shell', target = cliente_shell.cmdloop())
         self.shutdownOnInterrupt()
-        #self.broker.waitForShutdown()
+        broker.waitForShutdown()
+        return 0
         
 
 
@@ -442,15 +453,13 @@ class Client(Ice.Application):
 
 
 
-    def upload_file(self):
+    def upload_file(self, fileUploader):
         print("The choosen option is: upload_file. \n Please introduce the administrator token:")
         admin_token = input()
-        print("Introduce the path of the file you want to upload:")
-        file_path= input()
         try:
-            #file_uploader=
+            file_uploader=self.fileUploader()
             file_service= self.mainService.getFileService()
-            #file_service.uploadFile(file_uploader, admin_token)
+            file_service.uploadFile(file_uploader, admin_token)
         except IceFlix.Unauthorized:
             print("You are not authorized cause the introduced token is not an administrator.\n")
     def remove_file(self):
