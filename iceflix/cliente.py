@@ -1,7 +1,14 @@
 #!/usr/bin/python3
 
-'''
-Implememtatiom of the client of the application iceflix. Distributed System 2022/2023 by Alejandro Sánchez Arcos''' #pylint:disable=C0301
+'''Implememtatiom of the client of the application iceflix. Distributed System 2022/2023 by Alejandro Sánchez Arcos''' #pylint: disable=C0301
+#pylint: disable=C0200
+#pylint: disable=W0613
+#pylint: disable=W0201
+#pylint: disable=R1710
+#pylint: disable=R0201
+#pylint: disable=C0410
+#pylint: disable=E1101
+
 import sys, cmd, time, getpass, hashlib, threading
 from colorama import Fore
 import Ice
@@ -277,7 +284,7 @@ class ClientShell(cmd.Cmd):
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You must introduce a username and a password. Please check it and try again.\n")
         else:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are loggin in. \n")
-    
+
     def do_login_administrator(self, _):
         '''Implementation of the login administrator option.'''
         print("\n--- YOU HAVE CHOSEN THE OPTION ---: login_administrator. Please introduce the token of the administrator:")
