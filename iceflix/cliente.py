@@ -32,6 +32,7 @@ class FileUploader(IceFlix.FileUploader):
         '''Implementation of the close file.'''
         self.cont_file.close()
 
+
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
     def __init__(self, main_service, file_uploader):
@@ -243,7 +244,7 @@ class UserShell(cmd.Cmd):
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
 
     def do_exit(self, _):
-        'Close the user shell and EXIT.'
+        '''Implementation of the exit option.'''
         print('\nClosed IceFlix User Interface.\n')
         return True
 
