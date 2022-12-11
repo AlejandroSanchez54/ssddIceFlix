@@ -2,7 +2,7 @@
 
 import logging
 import sys
-
+from iceflix.client import Client
 from iceflix.main import MainApp
 
 
@@ -16,37 +16,8 @@ def setup_logging():
         format=LOG_FORMAT,
     )
 
-
-def main_service():
-    """Handles the `mainservice` CLI command."""
-    setup_logging()
-    logging.info("Main service starting...")
-    sys.exit(MainApp().main(sys.argv))
-
-
-def catalog_service():
-    """Handles the `catalogservice` CLI command."""
-    setup_logging()
-    logging.info("Catalog service")
-    return 0
-
-
-def file_service():
-    """Handles the `streamingservice` CLI command."""
-    setup_logging()
-    logging.info("File service")
-    return 0
-
-
-def authentication_service():
-    """Handles the `authenticationservice` CLI command."""
-    setup_logging()
-    logging.info("Authentication service")
-    return 0
-
-
 def client():
     """Handles the IceFlix client CLI command."""
     setup_logging()
     logging.info("Starting IceFlix client...")
-    return 0
+    sys.exit(Client().main(sys.argv))
