@@ -8,8 +8,11 @@
 #pylint: disable=R0201
 #pylint: disable=C0410
 #pylint: disable=E1101
+#pylint: disable=C0103
+#pylint: disable=C0303
+#pylint: disable=E0213
 
-import sys, cmd, time, getpass, hashlib, threading,random
+import sys, cmd, time, getpass, hashlib, threading, random
 from colorama import Fore
 import IceStorm
 import Ice
@@ -33,6 +36,45 @@ class FileUploader(IceFlix.FileUploader):
         '''Implementation of the close file.'''
         self.cont_file.close()
 
+class ChannelAuthenticators(IceFlix.UserUpdate):
+    '''Implementation of UserUpdate servant.'''
+    def newToken(user, token, serviceId, current=None):
+        '''Implementation of the channel info for newToken.'''
+        print("The authenticator service with id: " + serviceId +" call newToken for user: " + user + ". The new token is: " + token + ".")
+
+    def revokeToken(token, serviceId, current=None):
+        '''Implementation of the channel info for revokeToken.'''
+        print("The authenticator service with id: " + serviceId +" call revokeToken for token: " + token + ".")
+
+    def newUser(user, passwordHash, serviceId, current=None):
+        '''Implementation of the channel info for newUser.'''
+        print("The authenticator service with id: " + serviceId +" call newUser for user: " + user + " and password hash: " + passwordHash + ".")
+
+    def removeUser(user, serviceId, current=None):
+        '''Implementation of the channel info for removeUser.'''
+        print("The authenticator service with id: " + serviceId +" call removeUser for user: " + user + ".")
+
+
+class ChannelMediaCatalogs(IceFlix.CatalogUpdate):
+    '''Implementation of CatalogUpdate servant.'''
+
+    def renameTile(mediaId, newName, serviceId, current=None):
+        '''Implementation of the channel info for renameTile.'''
+        print("The media catalog service with id: " + serviceId +" call renameTile for media id: " + mediaId + ". The new name is: " + newName + ".")
+
+    def addTags(mediaId, user, tags, serviceId, current=None):
+        '''Implementation of the channel info for addTags.'''
+        print("The media catalog service with id: " + serviceId +" call addTags for media id: " + mediaId + " and user" + user + " . The tags added are: " + tags)
+
+    def removeTags(mediaId, user, tags, serviceId, current=None):
+        '''Implementation of the channel info for removeTags.'''
+        print("The media catalog service with id: " + serviceId +" call removeTags for media id: " + mediaId + " and user" + user + " . The tags removed are: " + tags)
+
+class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
+    '''Implementation of FileAvailabilityAnnounce servant.'''
+    def announceFiles(mediaIds, serviceId):
+        '''Implementation of the channel info for announceFiles.'''
+        print("The file service with id: " + serviceId +" call announceFiles. Media ids are: " + mediaIds + " .")
 
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
@@ -125,6 +167,26 @@ class AdministratorShell(cmd.Cmd):
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
 
+    def do_subscribeChannel_Authenticators(self, _):
+        '''Implementation of the subscribe Authenticator channel option.'''
+
+
+    
+    def do_subscribeChannel_MediaCatalogs(self, _):
+        '''Implementation of the subscribe Media Catalog channel option.'''
+
+
+    
+    def do_subscribeChannel_FileServices(self, _):
+        '''Implementation of the subscribe File Service channel option.'''
+
+
+
+
+
+
+
+
     def do_exit(self, _):
         '''Implementation of the exit option.'''
         'Close the administrator shell and EXIT.'
@@ -132,6 +194,7 @@ class AdministratorShell(cmd.Cmd):
         return True
     
     def do_EOF(self, line):
+        '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
         return True
 
@@ -244,6 +307,7 @@ class UserShell(cmd.Cmd):
         return True
 
     def do_EOF(self, line):
+        '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
         return True
 
@@ -346,14 +410,14 @@ class ClientShell(cmd.Cmd):
 class Announcement(IceFlix.Announcement):   
     def __init__(self,main_service, list_mainservices):
         self.main_service = main_service
-        self.list_mainservices=list_mainservices
+        self.list_mainservices = list_mainservices
         
     def announce(self,service,serviceId, current=None):
         #event = threading.Event()
         
         if service.ice_isA('::IceFlix::Main'):
-            self.main_service= IceFlix.MainPrx.checkedCast(service)
-            self.list_mainservices[serviceId]= self.main_service
+            self.main_service = IceFlix.MainPrx.checkedCast(service)
+            self.list_mainservices[serviceId] = self.main_service
             #event.wait()
             print("Main service connected")
             #event.isSet()
@@ -370,7 +434,7 @@ class Client(Ice.Application):
         self.token = ""
         self.media = []
         self.main_service = None
-        self.list_mainservices={}
+        self.list_mainservices = {}
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
@@ -384,18 +448,18 @@ class Client(Ice.Application):
 
     def run(self, _):
         """Implementation of run client."""
-        topic_mgr= self.get_topic_manager()
+        topic_mgr = self.get_topic_manager()
         if not topic_mgr:
             print("Invalid proxy")
             return 2
         try:
-            topic_announcement= topic_mgr.retrieve('Announcements')
+            topic_announcement = topic_mgr.retrieve('Announcements')
         except IceStorm.NoSuchTopic:
-            topic_announcement=topic_mgr.create('Announcements')
+            topic_announcement = topic_mgr.create('Announcements')
         
         announ_serv = Announcement(self.main_service, self.list_mainservices)
         announ_adapter = self.communicator().createObjectAdapterWithEndpoints("AnnouncementAdapter","tcp")
-        announ_prx= announ_adapter.addWithUUID(announ_serv)
+        announ_prx = announ_adapter.addWithUUID(announ_serv)
         topic_announcement.subscribeAndGetPublisher({},announ_prx)
 
         print("Waiting events... '{}'".format(announ_prx))
@@ -406,9 +470,9 @@ class Client(Ice.Application):
         self.communicator().waitForShutdown()
         topic_announcement.unsubscribe(announ_prx)
         #print(self.list_mainservices)
-        mains= list(self.list_mainservices.items())
-        random_main= random.choice(mains)
-        self.main_service=random_main[1]
+        mains = list(self.list_mainservices.items())
+        random_main = random.choice(mains)
+        self.main_service = random_main[1]
         announ_adapter.deactivate()
         if self.main_service:
             cliente_shell = ClientShell(self.main_service, None)
