@@ -9,8 +9,9 @@
 #pylint: disable=C0410
 #pylint: disable=E1101
 
-import sys, cmd, time, getpass, hashlib, threading
+import sys, cmd, time, getpass, hashlib, threading,random
 from colorama import Fore
+import IceStorm
 import Ice
 try:
     import IceFlix # pylint:disable=import-error
@@ -35,20 +36,19 @@ class FileUploader(IceFlix.FileUploader):
 
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
-    def __init__(self, main_service, file_uploader):
+    def __init__(self, main_service, file_uploader, admin_token):
         '''Implementation of the initialization of the administrator shell.'''
         self.intro = Fore.YELLOW+'\nYou are logged into IceFLix Administrator Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.YELLOW + '(Administrator): '+ Fore.RESET + ' '
         self.main_service = main_service
         self.token = ""
+        self.admin_token = admin_token
         self.file_uploader = file_uploader
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
         '''Implementation of the add user option.'''
-        print("The choosen option is: add_user. Please introduce the token of the administrator:")
-        admin_token = input()
-        print("Now introduce the user name of the new user:")
+        print("The choosen option is: add_user. Please introduce the user name of the new user:")
         user_name = input()
         user_psswd = getpass.getpass(prompt="Introduce the password of the new user:")
         hash_user_psswd = hashlib.sha256(user_psswd.encode()).hexdigest()
@@ -56,9 +56,8 @@ class AdministratorShell(cmd.Cmd):
             try:
                 if self.main_service:
                     authenticator = self.main_service.getAuthenticator()
-                    authenticator.addUser(user_name, hash_user_psswd, admin_token)
+                    authenticator.addUser(user_name, hash_user_psswd, self.admin_token)
                     print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " User:" + (user_name) + " added.\n")
-                    return True
             except IceFlix.TemporaryUnavailable:
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable.\n")
             except IceFlix.Unauthorized:
@@ -68,17 +67,14 @@ class AdministratorShell(cmd.Cmd):
 
     def do_remove_user(self, _):
         '''Implementation of the remove user option.'''
-        print("The choosen option is: remove_user. Please introduce the token of the administrator:")
-        admin_token = input()
-        print("Now introduce the user name of the user you want remove:")
+        print("The choosen option is: remove_user. Please introduce the user name of the user you want remove:")
         user_name = input()
         if user_name != "":
             try:
                 if self.main_service:
                     authenticator = self.main_service.getAuthenticator()
-                    authenticator.removeUser(user_name, admin_token)
+                    authenticator.removeUser(user_name, self.admin_token)
                     print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " User: " + (user_name) + " removed.\n")
-                    return True
             except IceFlix.TemporaryUnavailable:
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable.\n")
 
@@ -89,9 +85,7 @@ class AdministratorShell(cmd.Cmd):
 
     def do_rename_media(self, _):
         '''Implementation of the rename media option.'''
-        print("\n--- YOU HAVE CHOSEN THE OPTION ---: rename_media. Please introduce the token of the administrator:")
-        admin_token = input()
-        print("Now introduce the id of the media you want to rename:")
+        print("\n--- YOU HAVE CHOSEN THE OPTION ---: rename_media. Please introduce the id of the media you want to rename:")
         media_id = input()
         print("Introduce the new name for this media id:")
         media_newname = input()
@@ -99,7 +93,7 @@ class AdministratorShell(cmd.Cmd):
             try:
                 catalog = self.main_service.getCatalog()
                 if self.main_service:
-                    catalog.renameTile(media_id, media_newname, admin_token)
+                    catalog.renameTile(media_id, media_newname, self.admin_token)
                     print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Renamed title with" + (media_id) + "id to " + (media_newname) +" name.")
             except IceFlix.Unauthorized:
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
@@ -109,25 +103,22 @@ class AdministratorShell(cmd.Cmd):
 
     def do_upload_file(self, _):
         '''Implementation of the upload file option.'''
-        print("The choosen option is: upload_file. Please introduce the administrator token:")
-        admin_token = input()
+        print("The choosen option is: upload_file.")
         try:
             file_uploader = self.file_uploader()
             file_service = self.main_service.getFileService()
-            file_service.uploadFile(file_uploader, admin_token)
+            file_service.uploadFile(file_uploader, self.admin_token)
             print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Upload file.")
         except IceFlix.Unauthorized:
             print("ERROR. You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
 
     def do_remove_file(self, _):
         '''Implementation of the remove file option.'''
-        print("The choosen option is: remove_file. Please introduce the administrator token:")
-        admin_token = input()
-        print("Introduce the media id you want to remove:")
+        print("The choosen option is: remove_file. Please introduce the media id you want to remove:")
         media_id = input()
         try:
             file_service = self.main_service.getFileService()
-            file_service.removeFile(media_id, admin_token)
+            file_service.removeFile(media_id, self.admin_token)
             print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Remove media id:" + (media_id))
         except IceFlix.Unauthorized:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
@@ -138,6 +129,10 @@ class AdministratorShell(cmd.Cmd):
         '''Implementation of the exit option.'''
         'Close the administrator shell and EXIT.'
         print('\nClosed IceFlix Administrator Interface.\n')
+        return True
+    
+    def do_EOF(self, line):
+        self.do_exit(line)
         return True
 
 
@@ -248,6 +243,10 @@ class UserShell(cmd.Cmd):
         print('\nClosed IceFlix User Interface.\n')
         return True
 
+    def do_EOF(self, line):
+        self.do_exit(line)
+        return True
+
 
 class ClientShell(cmd.Cmd):
     '''Implementation of the client iceflix interface.'''
@@ -296,7 +295,7 @@ class ClientShell(cmd.Cmd):
                     authenticator = self.main_service.getAuthenticator()
                     if authenticator.isAdmin(admin_token):
                         print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
-                        admin_shell = AdministratorShell(self.main_service, self.file_uploader)
+                        admin_shell = AdministratorShell(self.main_service, self.file_uploader, admin_token)
                         admin_shell.cmdloop()
                     else:
                         print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
@@ -338,6 +337,31 @@ class ClientShell(cmd.Cmd):
         print('\nThank you for using IceFlix application. Come back soon !!!'+Fore.RED +' <3' + Fore.RESET + '\n')
         return True
 
+    def do_EOF(self, line):
+        'EOF EXIT.'
+        self.do_exit(line)
+        return True
+
+
+class Announcement(IceFlix.Announcement):   
+    def __init__(self,main_service, list_mainservices):
+        self.main_service = main_service
+        self.list_mainservices=list_mainservices
+        
+    def announce(self,service,serviceId, current=None):
+        #event = threading.Event()
+        
+        if service.ice_isA('::IceFlix::Main'):
+            self.main_service= IceFlix.MainPrx.checkedCast(service)
+            self.list_mainservices[serviceId]= self.main_service
+            #event.wait()
+            print("Main service connected")
+            #event.isSet()
+            
+            #print(self.main_service)
+        
+        #print(self.list_mainservices)
+
 
 class Client(Ice.Application):
     """Implementation of the client."""
@@ -346,25 +370,81 @@ class Client(Ice.Application):
         self.token = ""
         self.media = []
         self.main_service = None
+        self.list_mainservices={}
+
+    def get_topic_manager(self):
+        key = 'IceStorm.TopicManager.Proxy'
+        proxy = self.communicator().propertyToProxy(key)
+        if proxy is None:
+            print("property '{}' not set".format(key))
+            return None
+
+        #print("Using IceStorm in: '%s'" % key)
+        return IceStorm.TopicManagerPrx.checkedCast(proxy)
 
     def run(self, _):
         """Implementation of run client."""
-        broker = self.communicator()
-        servant = FileUploader()
-        adapter = broker.createObjectAdapterWithEndpoints("FileUploaderAdapter", "tcp")
-        proxy_fileuploader = adapter.add(servant, broker.stringToIdentity("fileuploader1"))
-        proxy_fileuploader = IceFlix.FileUploaderPrx.uncheckedCast(proxy_fileuploader)
-        adapter.activate()
-        self.connect()
+        topic_mgr= self.get_topic_manager()
+        if not topic_mgr:
+            print("Invalid proxy")
+            return 2
+        try:
+            topic_announcement= topic_mgr.retrieve('Announcements')
+        except IceStorm.NoSuchTopic:
+            topic_announcement=topic_mgr.create('Announcements')
+        
+        announ_serv = Announcement(self.main_service, self.list_mainservices)
+        announ_adapter = self.communicator().createObjectAdapterWithEndpoints("AnnouncementAdapter","tcp")
+        announ_prx= announ_adapter.addWithUUID(announ_serv)
+        topic_announcement.subscribeAndGetPublisher({},announ_prx)
+
+        print("Waiting events... '{}'".format(announ_prx))
+        
+        #print(self.main_service)
+        announ_adapter.activate()
+        self.shutdownOnInterrupt()
+        self.communicator().waitForShutdown()
+        topic_announcement.unsubscribe(announ_prx)
+        #print(self.list_mainservices)
+        mains= list(self.list_mainservices.items())
+        random_main= random.choice(mains)
+        self.main_service=random_main[1]
+        announ_adapter.deactivate()
         if self.main_service:
-            cliente_shell = ClientShell(self.main_service, proxy_fileuploader)
+            cliente_shell = ClientShell(self.main_service, None)
             threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
-            self.shutdownOnInterrupt()
-            broker.waitForShutdown()
-            return 0
-        else:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX. PLEASE TRY AGAIN :( .")
-            return -1
+        
+        
+
+        # ann_publisherPrx = topic_announcement.topic.getPublisher()
+        # ann_publisher = IceFlix.AnnouncementPrx.uncheckedCast(ann_publisherPrx)
+        # print(self.main_service)
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        #ENTREGA 1:
+        # broker = self.communicator()
+        # servant = FileUploader()
+        # adapter = broker.createObjectAdapterWithEndpoints("FileUploaderAdapter", "tcp")
+        # proxy_fileuploader = adapter.add(servant, broker.stringToIdentity("fileuploader1"))
+        # proxy_fileuploader = IceFlix.FileUploaderPrx.uncheckedCast(proxy_fileuploader)
+        # adapter.activate()
+        # self.connect()
+        # if self.main_service:
+        #     cliente_shell = ClientShell(self.main_service, proxy_fileuploader)
+        #     threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
+        #     self.shutdownOnInterrupt()
+        #     # broker.waitForShutdown()
+        #     return 0
+        # else:
+        #     print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX. PLEASE TRY AGAIN :( .")
+        #     return -1
 
     def connect(self):
         """Implementation of connect to the mainService"""
@@ -389,3 +469,5 @@ class Client(Ice.Application):
                 print(Fore.RED+"\n**ERROR**."+Fore.RESET+" Connection refused. Incorrect proxy. You have ", (3-(tries+1)), " tries")
                 time.sleep(5.0)
 
+if __name__ == "__main__":
+    sys.exit(Client().main(sys.argv))
