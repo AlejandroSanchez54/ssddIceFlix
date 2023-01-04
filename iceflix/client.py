@@ -40,19 +40,19 @@ class ChannelAuthenticators(IceFlix.UserUpdate):
     '''Implementation of UserUpdate servant.'''
     def newToken(self, user, token, serviceId, current=None):
         '''Implementation of the channel info for newToken.'''
-        print("The authenticator service with id: " + serviceId +" call newToken for user: " + user + ". The new token is: " + token + ".")
+        print("\nThe authenticator service with id: " + serviceId +" call newToken for user: " + user + ". The new token is: " + token + ".")
 
     def revokeToken(self, token, serviceId, current=None):
         '''Implementation of the channel info for revokeToken.'''
-        print("The authenticator service with id: " + serviceId +" call revokeToken for token: " + token + ".")
+        print("\nThe authenticator service with id: " + serviceId +" call revokeToken for token: " + token + ".")
 
     def newUser(self, user, passwordHash, serviceId, current=None):
         '''Implementation of the channel info for newUser.'''
-        print("The authenticator service with id: " + serviceId +" call newUser for user: " + user + " and password hash: " + passwordHash + ".")
+        print("\nThe authenticator service with id: " + serviceId +" call newUser for user: " + user + " and password hash: " + passwordHash + ".")
 
     def removeUser(self, user, serviceId, current=None):
         '''Implementation of the channel info for removeUser.'''
-        print("The authenticator service with id: " + serviceId +" call removeUser for user: " + user + ".")
+        print("\nThe authenticator service with id: " + serviceId +" call removeUser for user: " + user + ".")
 
 
 class ChannelMediaCatalogs(IceFlix.CatalogUpdate):
@@ -75,7 +75,7 @@ class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
     '''Implementation of FileAvailabilityAnnounce servant.'''
     def announceFiles(self, mediaIds, serviceId):
         '''Implementation of the channel info for announceFiles.'''
-        print("The file service with id: " + serviceId +" call announceFiles. Media ids are: " + mediaIds + " .")
+        print("\nThe file service with id: " + serviceId +" call announceFiles. Media ids are: " + str(mediaIds) + " .")
 
 
 class AdministratorShell(cmd.Cmd):
@@ -90,6 +90,7 @@ class AdministratorShell(cmd.Cmd):
         self.file_uploader = file_uploader
         self.broker = broker
         self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter", "tcp")
+        self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter", "tcp")
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -173,8 +174,27 @@ class AdministratorShell(cmd.Cmd):
 
     def do_subscribeChannel_Authenticators(self, _):
         '''Implementation of the subscribe Authenticator channel option.'''
+        print("Press Ctrl+D if you want to stop and unsubscribe the authenticators catalogs channel:")
+        topic_mgr = self.get_topic_manager()
+        if not topic_mgr:
+            print("Invalid proxy")
+            return 2
+        try:
+            topic_authentic = topic_mgr.retrieve('UserUpdates')
+        except IceStorm.NoSuchTopic:
+            topic_authentic = topic_mgr.create('UserUpdates')
         
-    
+        autentic_servant = ChannelAuthenticators()
+        self.autentic_adapter.activate()
+        autentic_prx = self.catalog_adapter.addWithUUID(autentic_servant)
+        topic_authentic.subscribeAndGetPublisher({}, autentic_prx)
+
+        try:
+            while True:
+                EOF_error = input()
+        except (EOFError):
+            topic_authentic.unsubscribe(autentic_prx)
+
     def do_subscribeChannel_MediaCatalogs(self, _):
         '''Implementation of the subscribe Media Catalog channel option.'''
         print("Press Ctrl+D if you want to stop and unsubscribe the media catalogs channel:")
@@ -188,10 +208,10 @@ class AdministratorShell(cmd.Cmd):
         except IceStorm.NoSuchTopic:
             topic_catalog = topic_mgr.create('CatalogUpdates')
         
-        servant = ChannelMediaCatalogs()
+        catalog_servant = ChannelMediaCatalogs()
         self.catalog_adapter.activate()
-        catalog_prx = self.catalog_adapter.addWithUUID(servant)
-        topic_catalog.subscribeAndGetPublisher({},catalog_prx)
+        catalog_prx = self.catalog_adapter.addWithUUID(catalog_servant)
+        topic_catalog.subscribeAndGetPublisher({}, catalog_prx)
 
         try:
             while True:
@@ -202,7 +222,6 @@ class AdministratorShell(cmd.Cmd):
     def do_subscribeChannel_FileServices(self, _):
         '''Implementation of the subscribe File Service channel option.'''
         
-
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
@@ -340,7 +359,7 @@ class UserShell(cmd.Cmd):
 
 class ClientShell(cmd.Cmd):
     '''Implementation of the client iceflix interface.'''
-    def __init__(self, main_service, file_uploader,broker):
+    def __init__(self, main_service, file_uploader, broker):
         '''Implementation of the initialization of the client shell'''
         self.intro = Fore.CYAN+'\nWELCOME to Iceflix Application.' + Fore.RESET +' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.CYAN+'(IceFLix):'+ Fore.RESET + ' '
@@ -422,7 +441,6 @@ class ClientShell(cmd.Cmd):
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
-    
 
     def do_exit(self, _):
         'Close IceFLix and EXIT.'
@@ -441,7 +459,7 @@ class Announcement(IceFlix.Announcement):
         self.list_mainservices = list_mainservices
 
         
-    def announce(self,service, serviceId, current=None):        
+    def announce(self, service, serviceId, current=None):        
         if service.ice_isA('::IceFlix::Main'):
             #print("entra")
             try:
