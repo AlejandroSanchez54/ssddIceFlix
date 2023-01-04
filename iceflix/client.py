@@ -91,6 +91,7 @@ class AdministratorShell(cmd.Cmd):
         self.broker = broker
         self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter", "tcp")
         self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter", "tcp")
+        self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter", "tcp")
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -174,7 +175,7 @@ class AdministratorShell(cmd.Cmd):
 
     def do_subscribeChannel_Authenticators(self, _):
         '''Implementation of the subscribe Authenticator channel option.'''
-        print("Press Ctrl+D if you want to stop and unsubscribe the authenticators catalogs channel:")
+        print("Press Ctrl+D if you want to stop and unsubscribe the authenticators  channel:")
         topic_mgr = self.get_topic_manager()
         if not topic_mgr:
             print("Invalid proxy")
@@ -186,7 +187,7 @@ class AdministratorShell(cmd.Cmd):
         
         autentic_servant = ChannelAuthenticators()
         self.autentic_adapter.activate()
-        autentic_prx = self.catalog_adapter.addWithUUID(autentic_servant)
+        autentic_prx = self.autentic_adapter.addWithUUID(autentic_servant)
         topic_authentic.subscribeAndGetPublisher({}, autentic_prx)
 
         try:
@@ -221,7 +222,26 @@ class AdministratorShell(cmd.Cmd):
     
     def do_subscribeChannel_FileServices(self, _):
         '''Implementation of the subscribe File Service channel option.'''
+        print("Press Ctrl+D if you want to stop and unsubscribe the file services channel:")
+        topic_mgr = self.get_topic_manager()
+        if not topic_mgr:
+            print("Invalid proxy")
+            return 2
+        try:
+            topic_file = topic_mgr.retrieve('FileAvailabilityAnnounce')
+        except IceStorm.NoSuchTopic:
+            topic_file = topic_mgr.create('FileAvailabilityAnnounce')
         
+        file_servant = ChannelFileServices()
+        self.file_adapter.activate()
+        file_prx = self.file_adapter.addWithUUID(file_servant)
+        topic_file.subscribeAndGetPublisher({}, file_prx)
+
+        try:
+            while True:
+                EOF_error = input()
+        except (EOFError):
+            topic_file.unsubscribe(file_prx)
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
@@ -440,7 +460,7 @@ class ClientShell(cmd.Cmd):
         except IceFlix.TemporaryUnavailable:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
         except IceFlix.WrongMediaId:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n") 
 
     def do_exit(self, _):
         'Close IceFLix and EXIT.'
