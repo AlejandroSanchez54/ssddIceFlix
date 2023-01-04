@@ -80,7 +80,7 @@ class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
 
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
-    def __init__(self, main_service, file_uploader, admin_token):
+    def __init__(self, main_service, file_uploader, admin_token, broker):
         '''Implementation of the initialization of the administrator shell.'''
         self.intro = Fore.YELLOW+'\nYou are logged into IceFLix Administrator Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.YELLOW + '(Administrator): '+ Fore.RESET + ' '
@@ -88,6 +88,8 @@ class AdministratorShell(cmd.Cmd):
         self.token = ""
         self.admin_token = admin_token
         self.file_uploader = file_uploader
+        self.broker = broker
+        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter", "tcp")
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -171,18 +173,44 @@ class AdministratorShell(cmd.Cmd):
 
     def do_subscribeChannel_Authenticators(self, _):
         '''Implementation of the subscribe Authenticator channel option.'''
-
-
+        
     
     def do_subscribeChannel_MediaCatalogs(self, _):
         '''Implementation of the subscribe Media Catalog channel option.'''
+        print("Press Ctrl+D if you want to stop and unsubscribe the media catalogs channel:")
+        topic_mgr = self.get_topic_manager()
+        
+        if not topic_mgr:
+            print("Invalid proxy")
+            return 2
+        try:
+            topic_catalog = topic_mgr.retrieve('CatalogUpdates')
+        except IceStorm.NoSuchTopic:
+            topic_catalog = topic_mgr.create('CatalogUpdates')
+        
+        servant = ChannelMediaCatalogs()
+        self.catalog_adapter.activate()
+        catalog_prx = self.catalog_adapter.addWithUUID(servant)
+        topic_catalog.subscribeAndGetPublisher({},catalog_prx)
 
+        try:
+            while True:
+                EOF_error = input()
+        except (EOFError):
+            topic_catalog.unsubscribe(catalog_prx)
     
     def do_subscribeChannel_FileServices(self, _):
         '''Implementation of the subscribe File Service channel option.'''
         
 
 
+    def get_topic_manager(self):
+        key = 'IceStorm.TopicManager.Proxy'
+        proxy = self.broker.propertyToProxy(key)
+        if proxy is None:
+            print("property '{}' not set".format(key))
+            return None
+        return IceStorm.TopicManagerPrx.checkedCast(proxy)
     
     def do_exit(self, _):
         '''Implementation of the exit option.'''
@@ -205,7 +233,6 @@ class UserShell(cmd.Cmd):
         self.main_service = main_service
         self.token = token
         self.file_uploader = file_uploader
-        
         super(UserShell, self).__init__()
 
     def do_search_by_name(self, _):
@@ -320,8 +347,7 @@ class ClientShell(cmd.Cmd):
         self.main_service = main_service
         self.token = ""
         self.file_uploader = file_uploader
-        self.broker= broker
-        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter","tcp")
+        self.broker = broker
         super(ClientShell, self).__init__()
 
     def do_login_user(self, _):
@@ -360,7 +386,7 @@ class ClientShell(cmd.Cmd):
                     authenticator = self.main_service.getAuthenticator()
                     if authenticator.isAdmin(admin_token):
                         print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
-                        admin_shell = AdministratorShell(self.main_service, self.file_uploader, admin_token)
+                        admin_shell = AdministratorShell(self.main_service, self.file_uploader, admin_token, self.broker)
                         admin_shell.cmdloop()
                     else:
                         print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
@@ -396,6 +422,7 @@ class ClientShell(cmd.Cmd):
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+    
 
     def do_exit(self, _):
         'Close IceFLix and EXIT.'
@@ -409,13 +436,12 @@ class ClientShell(cmd.Cmd):
 
 
 class Announcement(IceFlix.Announcement):   
-    def __init__(self,main_service, list_mainservices):
+    def __init__(self, main_service, list_mainservices):
         self.main_service = main_service
         self.list_mainservices = list_mainservices
 
         
-    def announce(self,service,serviceId, current=None):
-        """Implementation of announce function."""    
+    def announce(self,service, serviceId, current=None):        
         if service.ice_isA('::IceFlix::Main'):
             #print("entra")
             try:
@@ -496,7 +522,7 @@ class Client(Ice.Application):
         announ_adapter = self.communicator().createObjectAdapterWithEndpoints("AnnouncementAdapter", "tcp")
         announ_adapter.activate()
         announ_prx = announ_adapter.addWithUUID(announ_serv)
-        topic_announcement.subscribeAndGetPublisher({},announ_prx)
+        topic_announcement.subscribeAndGetPublisher({}, announ_prx)
         counter = 0
         while True:
             mains = list(self.list_mainservices.items())
@@ -530,7 +556,7 @@ class Client(Ice.Application):
         
         #announ_adapter.deactivate()
 
-        #event=threading.Event()
+        # threading.Thread(target=)
         
         
 
