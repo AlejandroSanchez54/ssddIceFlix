@@ -89,10 +89,10 @@ class AdministratorShell(cmd.Cmd):
         self.token = ""
         self.admin_token = admin_token
         self.broker = broker
-        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter", "tcp")
-        self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter", "tcp")
-        self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter", "tcp")
-        self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter", "tcp")
+        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter_c", "tcp")
+        self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
+        self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
+        self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -183,7 +183,7 @@ class AdministratorShell(cmd.Cmd):
         print("Press Ctrl+D if you want to stop and unsubscribe the authenticators  channel:")
         topic_mgr = self.get_topic_manager()
         if not topic_mgr:
-            print("Invalid proxy")
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
             return 2
         try:
             topic_authentic = topic_mgr.retrieve('UserUpdates')
@@ -207,7 +207,7 @@ class AdministratorShell(cmd.Cmd):
         topic_mgr = self.get_topic_manager()
         
         if not topic_mgr:
-            print("Invalid proxy")
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
             return 2
         try:
             topic_catalog = topic_mgr.retrieve('CatalogUpdates')
@@ -230,7 +230,7 @@ class AdministratorShell(cmd.Cmd):
         print("Press Ctrl+D if you want to stop and unsubscribe the file services channel:")
         topic_mgr = self.get_topic_manager()
         if not topic_mgr:
-            print("Invalid proxy")
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
             return 2
         try:
             topic_file = topic_mgr.retrieve('FileAvailabilityAnnounce')
@@ -250,11 +250,23 @@ class AdministratorShell(cmd.Cmd):
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
-        proxy = self.broker.propertyToProxy(key)
-        if proxy is None:
-            print("property '{}' not set".format(key))
+        counter = 0
+        print("Connecting with IceStorm...")
+        while counter < 3:
+            try:
+                proxy = self.broker.propertyToProxy(key)
+                if proxy is None:
+                    print("property '{}' not set".format(key))
+                    time.sleep(3.0)
+                else:
+                    return IceStorm.TopicManagerPrx.checkedCast(proxy)
+            except Ice.ConnectionRefusedException:
+                print("\nYou have " + Fore.RED + str(15-(counter*5)) + Fore.RESET + " seconds left to reconnect with IceStorm...")
+                counter += 1
+                time.sleep(5.0)
+        if counter == 3:
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
             return None
-        return IceStorm.TopicManagerPrx.checkedCast(proxy)
     
     def do_exit(self, _):
         '''Implementation of the exit option.'''
@@ -270,13 +282,12 @@ class AdministratorShell(cmd.Cmd):
 
 class UserShell(cmd.Cmd):
     '''Implementation of user interface.'''
-    def __init__(self, main_service, token, user_name, file_uploader):
+    def __init__(self, main_service, token, user_name):
         '''Implementation of the initialization of the user shell.'''
         self.intro = Fore.MAGENTA+'\nYou are logged into IceFLix User Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.MAGENTA + f'(User: {user_name}):'+ Fore.RESET + ' '
         self.main_service = main_service
         self.token = token
-        self.file_uploader = file_uploader
         super(UserShell, self).__init__()
 
     def do_search_by_name(self, _):
@@ -430,10 +441,11 @@ class ClientShell(cmd.Cmd):
         if admin_token != "":
             try:
                 if self.main_service:
+                    hash_admin = hashlib.sha256(admin_token.encode()).hexdigest()
                     authenticator = self.main_service.getAuthenticator()
-                    if authenticator.isAdmin(admin_token):
+                    if authenticator.isAdmin(hash_admin):
                         print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
-                        admin_shell = AdministratorShell(self.main_service, admin_token, self.broker)
+                        admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker)
                         admin_shell.cmdloop()
                     else:
                         print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
@@ -469,6 +481,54 @@ class ClientShell(cmd.Cmd):
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+    
+    def do_subscribeChannel_MediaCatalogs(self, _):
+        '''Implementation of the subscribe Media Catalog channel option.'''
+        
+        topic_mgr = self.get_topic_manager()
+        if not topic_mgr:
+            print("Invalid proxy")
+            return 2
+        else:
+            print("Reconnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
+        print("\nPress Ctrl+D if you want to stop and unsubscribe the media catalogs channel:")
+        try:
+            topic_catalog = topic_mgr.retrieve('CatalogUpdates')
+        except IceStorm.NoSuchTopic:
+            topic_catalog = topic_mgr.create('CatalogUpdates')
+        
+        servant = ChannelMediaCatalogs()
+        self.catalog_adapter.activate()
+        catalog_prx = self.catalog_adapter.addWithUUID(servant)
+        topic_catalog.subscribeAndGetPublisher({}, catalog_prx)
+
+        try:
+            while True:
+                EOF_error = input()
+        except (EOFError):
+            topic_catalog.unsubscribe(catalog_prx)
+
+    def get_topic_manager(self):
+        key = 'IceStorm.TopicManager.Proxy'
+        counter = 0
+        print("-----------------------------------------")
+        print("Connecting with IceStorm...")
+        print("-----------------------------------------")
+        while counter < 3:
+            try:
+                proxy = self.broker.propertyToProxy(key)
+                if proxy is None:
+                    print("property '{}' not set".format(key))
+                    time.sleep(3.0)
+                else:
+                    return IceStorm.TopicManagerPrx.checkedCast(proxy)
+            except Ice.ConnectionRefusedException:
+                print("\nYou have " + Fore.RED + str(15-(counter*5)) + Fore.RESET + " seconds left to reconnect with IceStorm...")
+                counter += 1
+                time.sleep(5.0)
+        if counter == 3:
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
+            return None
 
     def do_exit(self, _):
         'Close IceFLix and EXIT.'
@@ -489,47 +549,19 @@ class Announcement(IceFlix.Announcement):
         
     def announce(self, service, serviceId, current=None):        
         if service.ice_isA('::IceFlix::Main'):
-            #print("entra")
             try:
                 self.main_service = IceFlix.MainPrx.checkedCast(service)
-                #print(self.list_mainservices)
                 if serviceId not in list(self.list_mainservices):
                     self.list_mainservices[serviceId] = self.main_service
-                    #print("Main Service connected with id:  " + serviceId)
-                elif not self.main_service:
-                    self.list_mainservices.pop(self.main_service)
-            except (Ice.NoEndpointException, IceFlix.TemporaryUnavailable):
-                logging.error("Sorry, the main service is not available")
-                print()
-                self.list_mainservices.pop(self.main_service)
-        
-          
+            except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
+                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
+     
     def reconnect_mains(self):
         while True:
-            #INTENTO RECONNECT CON OTRO MAIN Y BORRAR LISTAS
-            # print("hola")
-            # for proxy in self.list_mainservices.values():
-            #     try:
-            #         proxy.ice_ping()
-            #         print(proxy.ice_ping())
-                        
-            #     except (Ice.ConnectionRefusedException,Ice.ConnectTimeoutException):
-            #         for clave,valor in self.list_mainservices.items():
-            #                 if valor == proxy:
-            #                     del self.list_mainservices[clave]
-            #                     print("delete")
-                    
-            #         print(self.list_mainservices)
-                            
-            #         print("hola")
-            #         #break
-            #     #print(proxy)
-
             if len(self.list_mainservices) != 0:
                 print("\nInitializing IceFlix...")
                 time.sleep(5.0)
-                break
-                
+                break                
             else:
                 print("Please wait a moment for another available main service...")
                 time.sleep(5.0)
@@ -546,11 +578,26 @@ class Client(Ice.Application):
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
-        proxy = self.communicator().propertyToProxy(key)
-        if proxy is None:
-            print("property '{}' not set".format(key))
+        counter = 0
+        print("-----------------------------------------")
+        print("Connecting with IceStorm...")
+        print("-----------------------------------------")
+        while counter < 3:
+            try:
+                proxy = self.communicator().propertyToProxy(key)
+                if proxy is None:
+                    print("property '{}' not set".format(key))
+                    time.sleep(3.0)
+                else:
+                    return IceStorm.TopicManagerPrx.checkedCast(proxy)
+            except Ice.ConnectionRefusedException:
+                print("\nYou have " + Fore.RED + str(15-(counter*5)) + Fore.RESET + " seconds left to reconnect with IceStorm...")
+                counter += 1
+                time.sleep(5.0)
+        if counter == 3:
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
             return None
-        return IceStorm.TopicManagerPrx.checkedCast(proxy)
+
 
     def get_random_main(self, list_mainservices):
         mains = list(self.list_mainservices.items())
@@ -563,8 +610,10 @@ class Client(Ice.Application):
         topic_mgr = self.get_topic_manager()
         broker = self.communicator()
         if not topic_mgr:
-            print("Invalid proxy")
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
             return 2
+        else:
+            print("\nConnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
         try:
             topic_announcement = topic_mgr.retrieve('Announcements')
         except IceStorm.NoSuchTopic:
@@ -575,16 +624,19 @@ class Client(Ice.Application):
         announ_prx = announ_adapter.addWithUUID(announ_serv)
         topic_announcement.subscribeAndGetPublisher({}, announ_prx)
         counter = 0
+        print("-----------------------------------------")
+        print("Connecting with IceFlix...")
+        print("-----------------------------------------\n")
         while True:
             self.main_service = self.get_random_main(self.list_mainservices)
             if self.main_service:
-                print("\nIceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" SUCCESSFULLY CONNECTED." + Fore.RESET + " ")
+                print("\nIceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" ** SUCCESSFULLY CONNECTED **" + Fore.RESET + " ")
                 cliente_shell = ClientShell(self.main_service, broker)
                 threading.Thread(target=announ_serv.reconnect_mains(), daemon=True).start()
                 threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
                 break
             else:
-                print("Ups there are not main services. Please wait a moment for an available main service...")
+                print("Ups there are not main services. Please wait a moment for an available main service... ** " + Fore.RED + str(20-(counter * 5)) + Fore.RESET +" seconds left until disconnection **")
                 counter += 1
                 time.sleep(5.0)
             
@@ -592,51 +644,12 @@ class Client(Ice.Application):
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED. THERE ARE NOT AVAILABLE MAINS AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
                 break
 
+    
         print("TO FINISH THE EXECUTION PRESS CTRL C")
         self.shutdownOnInterrupt()
         self.communicator().waitForShutdown()
         topic_announcement.unsubscribe(announ_prx)
-
-        #ENTREGA 1:
-        # broker = self.communicator()
-        # servant = FileUploader()
-        # adapter = broker.createObjectAdapterWithEndpoints("FileUploaderAdapter", "tcp")
-        # proxy_fileuploader = adapter.add(servant, broker.stringToIdentity("fileuploader1"))
-        # proxy_fileuploader = IceFlix.FileUploaderPrx.uncheckedCast(proxy_fileuploader)
-        # adapter.activate()
-        # self.connect()
-        # if self.main_service:
-        #     cliente_shell = ClientShell(self.main_service, proxy_fileuploader)
-        #     threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
-        #     self.shutdownOnInterrupt()
-        #     # broker.waitForShutdown()
-        #     return 0
-        # else:
-        #     print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX. PLEASE TRY AGAIN :( .")
-        #     return -1
-
-    def connect(self):
-        """Implementation of connect to the mainService"""
-        print("Please enter the proxy of the Main Service:")
-        for tries in range(3):
-            proxy_mainstr = input()
-            print("\nTrying to connect with Main Service. Please wait... ")
-            try:
-                broker = self.communicator()
-                proxy_main = broker.stringToProxy(proxy_mainstr)
-                self.main_service = IceFlix.MainPrx.checkedCast(proxy_main)
-                if self.main_service:
-                    print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Connected to the Main Service...")
-                    break
-                else:
-                    print(Fore.RED + "\n**ERROR**." + Fore.RESET+" Connection refused. Incorrect proxy. You have ", (3-(tries+1)), " tries")
-                    time.sleep(5.0)
-            except IceFlix.TemporaryUnavailable:
-                print(Fore.RED + "\n**ERROR**. Main Service is Temporary Unavailable.\n")
-                time.sleep(5.0)
-            except Ice.NoEndpointException:
-                print(Fore.RED+"\n**ERROR**."+Fore.RESET+" Connection refused. Incorrect proxy. You have ", (3-(tries+1)), " tries")
-                time.sleep(5.0)
+        
 
 if __name__ == "__main__":
     sys.exit(Client().main(sys.argv))
