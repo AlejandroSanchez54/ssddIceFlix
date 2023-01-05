@@ -12,7 +12,7 @@
 #pylint: disable=C0303
 #pylint: disable=E0213
 
-import sys, cmd, time, getpass, hashlib, threading, random, logging
+import sys, cmd, time, getpass, hashlib, threading, random
 from colorama import Fore
 import IceStorm
 import Ice
@@ -81,7 +81,7 @@ class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
 
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
-    def __init__(self, main_service, admin_token, broker):
+    def __init__(self, main_service, admin_token, broker, catalog_adapter, autentic_adapter, file_adapter, fileuploader_adapter):
         '''Implementation of the initialization of the administrator shell.'''
         self.intro = Fore.YELLOW+'\nYou are logged into IceFLix Administrator Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.YELLOW + '(Administrator): '+ Fore.RESET + ' '
@@ -89,10 +89,15 @@ class AdministratorShell(cmd.Cmd):
         self.token = ""
         self.admin_token = admin_token
         self.broker = broker
-        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter_c", "tcp")
-        self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
-        self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
-        self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
+        # self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter_c", "tcp")
+        # self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
+        # self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
+        # self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
+        self.catalog_adapter = catalog_adapter
+        self.autentic_adapter = autentic_adapter
+        self.file_adapter = file_adapter
+        self.fileuploader_adapter = fileuploader_adapter
+
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -282,12 +287,14 @@ class AdministratorShell(cmd.Cmd):
 
 class UserShell(cmd.Cmd):
     '''Implementation of user interface.'''
-    def __init__(self, main_service, token, user_name):
+    def __init__(self, main_service, token, user_name, hash_password):
         '''Implementation of the initialization of the user shell.'''
         self.intro = Fore.MAGENTA+'\nYou are logged into IceFLix User Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.MAGENTA + f'(User: {user_name}):'+ Fore.RESET + ' '
         self.main_service = main_service
         self.token = token
+        self.user_name = user_name
+        self.hash_password = hash_password
         super(UserShell, self).__init__()
 
     def do_search_by_name(self, _):
@@ -315,7 +322,7 @@ class UserShell(cmd.Cmd):
         except IceFlix.TemporaryUnavailable:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
         except IceFlix.Unauthorized:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please check it and try again.\n")
+            self.refresh_newtoken()
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
 
@@ -357,7 +364,7 @@ class UserShell(cmd.Cmd):
         except IceFlix.TemporaryUnavailable:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
         except IceFlix.Unauthorized:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please check it and try again.\n")
+           self.refresh_newtoken()
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
 
@@ -377,11 +384,19 @@ class UserShell(cmd.Cmd):
                     file_desc.write(bytes_received)
                 file_handler.close(self.token)
             except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please try again.\n")
+                self.refresh_newtoken()
             except IceFlix.WrongMediaId:
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
     
-    
+    def refresh_newtoken(self):
+        try:
+            if self.main_service:
+                authenticator = self.main_service.getAuthenticator()
+                self.token = authenticator.refreshAuthorization(self.user_name, self.hash_password)
+                print("new token" + self.token)
+        except IceFlix.Unauthorized:
+                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please try again.\n")
+
     def do_exit(self, _):
         '''Implementation of the exit option.'''
         print('\nClosed IceFlix User Interface.\n')
@@ -402,11 +417,16 @@ class ClientShell(cmd.Cmd):
         self.main_service = main_service
         self.token = ""
         self.broker = broker
-        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter", "tcp")
+        self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter_c", "tcp")
+        self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
+        self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
+        self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
+
         super(ClientShell, self).__init__()
 
     def do_login_user(self, _):
         '''Implementation of the login user option.'''
+        print(self.token)
         if self.token == "":
             print("\n--- YOU HAVE CHOSEN THE OPTION ---: login_user. Please introduce your username:")
             user_name = input()
@@ -419,12 +439,11 @@ class ClientShell(cmd.Cmd):
                         self.token = authenticator.refreshAuthorization(user_name, hash_password)
                         if authenticator.isAuthorized(self.token):
                             print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF USER:" + Fore.RESET + " " + (user_name) + Fore.GREEN + " **" + Fore.RESET + " ")
-                            user_shell = UserShell(self.main_service, self.token, user_name)
+                            user_shell = UserShell(self.main_service, self.token, user_name, hash_password)
                             user_shell.cmdloop()
+                            self.token = ""
                         else:
-                           print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " LOGIN NOT SUCCESFULL by user:" + user_name + ". Please check it and try again.\n")
-                    return True
-                
+                           print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " LOGIN NOT SUCCESFULL by user:" + user_name + ". Please check it and try again.\n")                
                 except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
                     print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
                 except IceFlix.Unauthorized:
@@ -445,7 +464,7 @@ class ClientShell(cmd.Cmd):
                     authenticator = self.main_service.getAuthenticator()
                     if authenticator.isAdmin(hash_admin):
                         print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
-                        admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker)
+                        admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker, self.catalog_adapter, self.autentic_adapter, self.file_adapter, self.fileuploader_adapter)
                         admin_shell.cmdloop()
                     else:
                         print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
@@ -481,62 +500,14 @@ class ClientShell(cmd.Cmd):
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
         except IceFlix.WrongMediaId:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
-    
-    def do_subscribeChannel_MediaCatalogs(self, _):
-        '''Implementation of the subscribe Media Catalog channel option.'''
-        
-        topic_mgr = self.get_topic_manager()
-        if not topic_mgr:
-            print("Invalid proxy")
-            return 2
-        else:
-            print("Reconnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
-        print("\nPress Ctrl+D if you want to stop and unsubscribe the media catalogs channel:")
-        try:
-            topic_catalog = topic_mgr.retrieve('CatalogUpdates')
-        except IceStorm.NoSuchTopic:
-            topic_catalog = topic_mgr.create('CatalogUpdates')
-        
-        servant = ChannelMediaCatalogs()
-        self.catalog_adapter.activate()
-        catalog_prx = self.catalog_adapter.addWithUUID(servant)
-        topic_catalog.subscribeAndGetPublisher({}, catalog_prx)
-
-        try:
-            while True:
-                EOF_error = input()
-        except (EOFError):
-            topic_catalog.unsubscribe(catalog_prx)
-
-    def get_topic_manager(self):
-        key = 'IceStorm.TopicManager.Proxy'
-        counter = 0
-        print("-----------------------------------------")
-        print("Connecting with IceStorm...")
-        print("-----------------------------------------")
-        while counter < 3:
-            try:
-                proxy = self.broker.propertyToProxy(key)
-                if proxy is None:
-                    print("property '{}' not set".format(key))
-                    time.sleep(3.0)
-                else:
-                    return IceStorm.TopicManagerPrx.checkedCast(proxy)
-            except Ice.ConnectionRefusedException:
-                print("\nYou have " + Fore.RED + str(15-(counter*5)) + Fore.RESET + " seconds left to reconnect with IceStorm...")
-                counter += 1
-                time.sleep(5.0)
-        if counter == 3:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
-            return None
 
     def do_exit(self, _):
-        'Close IceFLix and EXIT.'
+        '''Implementation of the exit option.'''
         print('\nThank you for using IceFlix application. Come back soon !!!'+Fore.RED +' <3' + Fore.RESET + '\n')
         return True
 
     def do_EOF(self, line):
-        'EOF EXIT.'
+        '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
         return True
 
