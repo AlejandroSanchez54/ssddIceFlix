@@ -11,6 +11,7 @@
 #pylint: disable=C0103
 #pylint: disable=C0303
 #pylint: disable=E0213
+#pylint: disable=W0311
 
 import sys, cmd, time, getpass, hashlib, threading, random
 from colorama import Fore
@@ -78,10 +79,26 @@ class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
         '''Implementation of the channel info for announceFiles.'''
         print("\nThe file service with id: " + serviceId +" call announceFiles. Media ids are: " + str(mediaIds) + " .")
 
+class ChannelAnnouncements(IceFlix.Announcement):
+    '''Implementation of ChannelAnnouncements servant.'''
+    def announce(self, service, serviceId, current=None):
+        '''Implementation of the channel info for announceFiles.'''
+        if service.ice_isA('::IceFlix::Main'):
+            print("\nAnnouncing  MAIN service: " + str(service) +" with service id:" + serviceId + " .")
+
+        elif service.ice_isA('::IceFlix::Authenticator'):
+            print("\nAnnouncing  AUTHENTICATOR service: " + str(service) +" with service id:" + serviceId + " .")
+
+        elif service.ice_isA('::IceFlix::MediaCatalog'):
+            print("\nAnnouncing  MEDIA CATALOG service: " + str(service) +" with service id:" + serviceId + " .")
+
+        elif service.ice_isA('::IceFlix::FileService'):
+            print("\nAnnouncing  FILE service: " + str(service) +" with service id:" + serviceId + " .")
+
 
 class AdministratorShell(cmd.Cmd):
     '''Implementation of administrator interface.'''
-    def __init__(self, main_service, admin_token, broker, catalog_adapter, autentic_adapter, file_adapter, fileuploader_adapter):
+    def __init__(self, main_service, admin_token, broker, catalog_adapter, autentic_adapter, file_adapter, fileuploader_adapter, announ_adapter):
         '''Implementation of the initialization of the administrator shell.'''
         self.intro = Fore.YELLOW+'\nYou are logged into IceFLix Administrator Interface.' + Fore.RESET+' Please type the option you want to choose:\n \nType help or ? to list commands.\n'
         self.prompt = Fore.YELLOW + '(Administrator): '+ Fore.RESET + ' '
@@ -89,15 +106,11 @@ class AdministratorShell(cmd.Cmd):
         self.token = ""
         self.admin_token = admin_token
         self.broker = broker
-        # self.catalog_adapter = self.broker.createObjectAdapterWithEndpoints("CatalogAdapter_c", "tcp")
-        # self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
-        # self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
-        # self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
         self.catalog_adapter = catalog_adapter
         self.autentic_adapter = autentic_adapter
         self.file_adapter = file_adapter
         self.fileuploader_adapter = fileuploader_adapter
-
+        self.announ_adapter = announ_adapter
         super(AdministratorShell, self).__init__()
 
     def do_add_user(self, _):
@@ -202,6 +215,7 @@ class AdministratorShell(cmd.Cmd):
 
         try:
             while True:
+                print("ENTRO")
                 EOF_error = input()
         except (EOFError):
             topic_authentic.unsubscribe(autentic_prx)
@@ -226,6 +240,7 @@ class AdministratorShell(cmd.Cmd):
 
         try:
             while True:
+                print("ENTRO")
                 EOF_error = input()
         except (EOFError):
             topic_catalog.unsubscribe(catalog_prx)
@@ -252,6 +267,31 @@ class AdministratorShell(cmd.Cmd):
                 EOF_error = input()
         except (EOFError):
             topic_file.unsubscribe(file_prx)
+
+    def do_subscribeChannel_Announcements(self, _):
+        '''Implementation of the subscribe File Service channel option.'''
+        print("Press Ctrl+D if you want to stop and unsubscribe the announcements channel:")
+        topic_mgr = self.get_topic_manager()
+        if not topic_mgr:
+            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
+            return 2
+        else:
+            print("\nConnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
+        try:
+            topic_announ = topic_mgr.retrieve('Announcements')
+        except IceStorm.NoSuchTopic:
+            topic_announ = topic_mgr.create('Announcements')
+        
+        announ_servant = ChannelAnnouncements()
+        self.announ_adapter.activate()
+        announ_prx = self.announ_adapter.addWithUUID(announ_servant)
+        topic_announ.subscribeAndGetPublisher({}, announ_prx)
+
+        try:
+            while True:
+                EOF_error = input()
+        except (EOFError):
+            topic_announ.unsubscribe(announ_prx)
 
     def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
@@ -405,6 +445,7 @@ class UserShell(cmd.Cmd):
     def do_EOF(self, line):
         '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
+        print('\nClosed IceFlix User Interface.\n')
         return True
 
 
@@ -421,7 +462,7 @@ class ClientShell(cmd.Cmd):
         self.autentic_adapter = self.broker.createObjectAdapterWithEndpoints("AuthenticatorAdapter_c", "tcp")
         self.file_adapter = self.broker.createObjectAdapterWithEndpoints("FileServiceAdapter_c", "tcp")
         self.fileuploader_adapter = self.broker.createObjectAdapterWithEndpoints("FileUploaderAdapter_c", "tcp")
-
+        self.announ_adapter = self.broker.createObjectAdapterWithEndpoints("Announcements_c", "tcp")
         super(ClientShell, self).__init__()
 
     def do_login_user(self, _):
@@ -464,7 +505,7 @@ class ClientShell(cmd.Cmd):
                     authenticator = self.main_service.getAuthenticator()
                     if authenticator.isAdmin(hash_admin):
                         print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
-                        admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker, self.catalog_adapter, self.autentic_adapter, self.file_adapter, self.fileuploader_adapter)
+                        admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker, self.catalog_adapter, self.autentic_adapter, self.file_adapter, self.fileuploader_adapter, self.announ_adapter)
                         admin_shell.cmdloop()
                     else:
                         print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
@@ -516,9 +557,8 @@ class Announcement(IceFlix.Announcement):
     def __init__(self, main_service, list_mainservices):
         self.main_service = main_service
         self.list_mainservices = list_mainservices
-
         
-    def announce(self, service, serviceId, current=None):        
+    def announce(self, service, serviceId, current=None):
         if service.ice_isA('::IceFlix::Main'):
             try:
                 self.main_service = IceFlix.MainPrx.checkedCast(service)
@@ -526,16 +566,6 @@ class Announcement(IceFlix.Announcement):
                     self.list_mainservices[serviceId] = self.main_service
             except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
-     
-    def reconnect_mains(self):
-        while True:
-            if len(self.list_mainservices) != 0:
-                print("\nInitializing IceFlix...")
-                time.sleep(5.0)
-                break                
-            else:
-                print("Please wait a moment for another available main service...")
-                time.sleep(5.0)
 
 
 class Client(Ice.Application):
@@ -546,29 +576,20 @@ class Client(Ice.Application):
         self.media = []
         self.main_service = None
         self.list_mainservices = {}
-
-    def get_topic_manager(self):
+        
+    def get_topic_manager(self): 
         key = 'IceStorm.TopicManager.Proxy'
         counter = 0
         print("-----------------------------------------")
         print("Connecting with IceStorm...")
         print("-----------------------------------------")
-        while counter < 3:
-            try:
-                proxy = self.communicator().propertyToProxy(key)
-                if proxy is None:
-                    print("property '{}' not set".format(key))
-                    time.sleep(3.0)
-                else:
-                    return IceStorm.TopicManagerPrx.checkedCast(proxy)
-            except Ice.ConnectionRefusedException:
-                print("\nYou have " + Fore.RED + str(15-(counter*5)) + Fore.RESET + " seconds left to reconnect with IceStorm...")
-                counter += 1
-                time.sleep(5.0)
-        if counter == 3:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
-            return None
 
+        proxy = self.communicator().propertyToProxy(key)
+        if proxy is None:
+            print("property '{}' not set".format(key))
+            return 2
+        else:
+            return IceStorm.TopicManagerPrx.checkedCast(proxy) 
 
     def get_random_main(self, list_mainservices):
         mains = list(self.list_mainservices.items())
@@ -578,49 +599,57 @@ class Client(Ice.Application):
 
     def run(self, _):
         """Implementation of run client."""
-        topic_mgr = self.get_topic_manager()
-        broker = self.communicator()
-        if not topic_mgr:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
-            return 2
-        else:
-            print("\nConnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
-        try:
-            topic_announcement = topic_mgr.retrieve('Announcements')
-        except IceStorm.NoSuchTopic:
-            topic_announcement = topic_mgr.create('Announcements')
-        announ_serv = Announcement(self.main_service, self.list_mainservices)
         announ_adapter = self.communicator().createObjectAdapterWithEndpoints("AnnouncementAdapter", "tcp")
-        announ_adapter.activate()
-        announ_prx = announ_adapter.addWithUUID(announ_serv)
-        topic_announcement.subscribeAndGetPublisher({}, announ_prx)
-        counter = 0
-        print("-----------------------------------------")
-        print("Connecting with IceFlix...")
-        print("-----------------------------------------\n")
-        while True:
-            self.main_service = self.get_random_main(self.list_mainservices)
-            if self.main_service:
-                print("\nIceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" ** SUCCESSFULLY CONNECTED **" + Fore.RESET + " ")
-                cliente_shell = ClientShell(self.main_service, broker)
-                threading.Thread(target=announ_serv.reconnect_mains(), daemon=True).start()
-                threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
-                break
-            else:
-                print("Ups there are not main services. Please wait a moment for an available main service... ** " + Fore.RED + str(20-(counter * 5)) + Fore.RESET +" seconds left until disconnection **")
-                counter += 1
-                time.sleep(5.0)
-            
-            if counter == 4:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED. THERE ARE NOT AVAILABLE MAINS AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
-                break
+        counter_re = 0
+        finish = False
+        while counter_re < 5 and finish == False:
+                    try:
+                        topic_mgr = self.get_topic_manager() 
+                        broker = self.communicator()
+                        if not topic_mgr:
+                            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
+                            return 2
+                        else:
+                            print("\nConnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
+                        try:
+                            topic_announcement = topic_mgr.retrieve('Announcements')
+                        except IceStorm.NoSuchTopic:
+                            topic_announcement = topic_mgr.create('Announcements')
+                        announ_serv = Announcement(self.main_service, self.list_mainservices)
+                        announ_adapter.activate()
+                        announ_prx = announ_adapter.addWithUUID(announ_serv)
+                        topic_announcement.subscribeAndGetPublisher({}, announ_prx)
+                        counter = 0
+                        print("-----------------------------------------")
+                        print("Connecting with IceFlix...")
+                        print("-----------------------------------------\n")
+                        try:
+                            while True:
+                                self.main_service = self.get_random_main(self.list_mainservices)
+                                topic_mgr.ice_ping()
+                                if self.main_service:
+                                    print("\nIceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" ** SUCCESSFULLY CONNECTED **" + Fore.RESET + " ")
+                                    print("\nInitializing IceFlix...")
+                                    time.sleep(3.0)
+                                    cliente_shell = ClientShell(self.main_service, broker)
+                                    threading.Thread(name='cliente_shell', target=cliente_shell.cmdloop(), daemon=True).start()
+                                    finish = True
+                                    break
+                                else:
+                                    print("Ups there are not main services. Please wait a moment for an available main service... ** " + Fore.RED + str(20-(counter * 5)) + Fore.RESET +" seconds left until disconnection **")
+                                    counter += 1
+                                    time.sleep(5.0)
+                                if counter == 4:
+                                    print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED. THERE ARE NOT AVAILABLE MAINS AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
+                                    return 2
+                        except Ice.ConnectionRefusedException:
+                            print("Ups, IceStorm is disconnected...")
 
-    
-        print("TO FINISH THE EXECUTION PRESS CTRL C")
-        self.shutdownOnInterrupt()
-        self.communicator().waitForShutdown()
-        topic_announcement.unsubscribe(announ_prx)
-        
+                        topic_announcement.unsubscribe(announ_prx)   
+                    except Ice.ConnectionRefusedException:
+                        counter_re += 1
+                        print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused. You have " + Fore.RED + str(5-counter_re) + Fore.RESET +" attempts left to try a reconnection...")
+                        time.sleep(5.0)
 
 if __name__ == "__main__":
     sys.exit(Client().main(sys.argv))
