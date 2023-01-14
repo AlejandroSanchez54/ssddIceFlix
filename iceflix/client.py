@@ -13,7 +13,7 @@
 #pylint: disable=E0213
 #pylint: disable=W0311
 
-import sys, cmd, time, getpass, hashlib, threading, random
+import sys, cmd, time, getpass, hashlib, threading, random, logging
 from colorama import Fore
 import IceStorm
 import Ice
@@ -24,6 +24,20 @@ except ImportError:
     import os
     Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
     import IceFlix
+
+class Announcement(IceFlix.Announcement):   
+    def __init__(self, main_service, list_mainservices):
+        self.main_service = main_service
+        self.list_mainservices = list_mainservices
+        
+    def announce(self, service, serviceId, current=None):
+        if service.ice_isA('::IceFlix::Main'):
+            try:
+                self.main_service = IceFlix.MainPrx.checkedCast(service)
+                if serviceId not in list(self.list_mainservices):
+                    self.list_mainservices[serviceId] = self.main_service
+            except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + "Please check it and try again.\n")
 
 
 class FileUploader(IceFlix.FileUploader):
@@ -38,23 +52,24 @@ class FileUploader(IceFlix.FileUploader):
         self.cont_file.close()
         current.adapter.remove(current.id)
 
+
 class ChannelAuthenticators(IceFlix.UserUpdate):
     '''Implementation of UserUpdate servant.'''
     def newToken(self, user, token, serviceId, current=None):
         '''Implementation of the channel info for newToken.'''
-        print("\nThe authenticator service with id: " + serviceId +" call newToken for user: " + user + ". The new token is: " + token + ".")
+        logging.info(" The authenticator service with id: " + Fore.MAGENTA + serviceId + Fore.RESET +" call newToken for user: " + user + ". The new token is: " + token + ".")
 
     def revokeToken(self, token, serviceId, current=None):
         '''Implementation of the channel info for revokeToken.'''
-        print("\nThe authenticator service with id: " + serviceId +" call revokeToken for token: " + token + ".")
+        logging.info(" The authenticator service with id: " +  Fore.MAGENTA +serviceId + Fore.RESET +" call revokeToken for token: " + token + ".")
 
     def newUser(self, user, passwordHash, serviceId, current=None):
         '''Implementation of the channel info for newUser.'''
-        print("\nThe authenticator service with id: " + serviceId +" call newUser for user: " + user + " and password hash: " + passwordHash + ".")
+        logging.info(" The authenticator service with id: " + Fore.MAGENTA + serviceId + Fore.RESET +" call newUser for user: " + user + " and password hash: " + passwordHash + ".")
 
     def removeUser(self, user, serviceId, current=None):
         '''Implementation of the channel info for removeUser.'''
-        print("\nThe authenticator service with id: " + serviceId +" call removeUser for user: " + user + ".")
+        logging.info(" The authenticator service with id: " + Fore.MAGENTA + serviceId + Fore.RESET +" call removeUser for user: " + user + ".")
 
 
 class ChannelMediaCatalogs(IceFlix.CatalogUpdate):
@@ -62,38 +77,39 @@ class ChannelMediaCatalogs(IceFlix.CatalogUpdate):
 
     def renameTile(self, mediaId, newName, serviceId, current=None):
         '''Implementation of the channel info for renameTile.'''
-        print("\nThe media catalog service with id: " + serviceId +" call renameTile for media id: " + mediaId + ". The new name is: " + newName + ".")
+        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call renameTile for media id: " + mediaId + ". The new name is: " + newName + ".")
 
     def addTags(self, mediaId, user, tags, serviceId, current=None):
         '''Implementation of the channel info for addTags.'''
-        print("\nThe media catalog service with id: " + serviceId +" call addTags for media id: " + mediaId + " and user" + user + " . The tags added are: " + str(tags)+ ".")
+        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call addTags for media id: " + mediaId + " and user" + user + " . The tags added are: " + str(tags)+ ".")
 
     def removeTags(self, mediaId, user, tags, serviceId, current=None):
         '''Implementation of the channel info for removeTags.'''
-        print("\nThe media catalog service with id: " + serviceId +" call removeTags for media id: " + mediaId + " and user" + user + " . The tags removed are: " + str(tags)+ ".")
+        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call removeTags for media id: " + mediaId + " and user" + user + " . The tags removed are: " + str(tags)+ ".")
 
 
 class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
     '''Implementation of FileAvailabilityAnnounce servant.'''
     def announceFiles(self, mediaIds, serviceId):
         '''Implementation of the channel info for announceFiles.'''
-        print("\nThe file service with id: " + serviceId +" call announceFiles. Media ids are: " + str(mediaIds) + " .")
+        logging.info(" The file service with id: " + Fore.YELLOW + serviceId + Fore.RESET +" call announceFiles. Media ids are: " + str(mediaIds) + " .")
+
 
 class ChannelAnnouncements(IceFlix.Announcement):
     '''Implementation of ChannelAnnouncements servant.'''
     def announce(self, service, serviceId, current=None):
         '''Implementation of the channel info for announceFiles.'''
         if service.ice_isA('::IceFlix::Main'):
-            print("\nAnnouncing  MAIN service: " + str(service) +" with service id:" + serviceId + " .")
+            logging.info(" Announcing" + Fore.CYAN + " MAIN service: " + Fore.RESET + str(service) +"   --with service id: " + serviceId + " .")
 
         elif service.ice_isA('::IceFlix::Authenticator'):
-            print("\nAnnouncing  AUTHENTICATOR service: " + str(service) +" with service id:" + serviceId + " .")
+            logging.info(" Announcing"  + Fore.MAGENTA + " AUTHENTICATOR service: " + Fore.RESET + str(service) +"   --with service id: " + serviceId + " .")
 
         elif service.ice_isA('::IceFlix::MediaCatalog'):
-            print("\nAnnouncing  MEDIA CATALOG service: " + str(service) +" with service id:" + serviceId + " .")
+            logging.info(" Announcing" + Fore.BLUE + " MEDIA CATALOG service: " + Fore.RESET + str(service) +"   --with service id: " + serviceId + " .")
 
         elif service.ice_isA('::IceFlix::FileService'):
-            print("\nAnnouncing  FILE service: " + str(service) +" with service id:" + serviceId + " .")
+            logging.info(" Announcing" + Fore.YELLOW + " FILE service: " + Fore.RESET + str(service) +"   --with service id: " + serviceId + " .")
 
 
 class AdministratorShell(cmd.Cmd):
@@ -124,13 +140,11 @@ class AdministratorShell(cmd.Cmd):
                 if self.main_service:
                     authenticator = self.main_service.getAuthenticator()
                     authenticator.addUser(user_name, hash_user_psswd, self.admin_token)
-                    print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " User:" + (user_name) + " added.\n")
+                    logging.info(Fore.GREEN + " SUCCESSFUL OPERATION." + Fore.RESET + " User: " + (user_name) + " added.\n")
             except IceFlix.TemporaryUnavailable:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable.\n")
-            except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator.\n")
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
         else:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You have entered an invalid user name or password.\n")
+            logging.error(Fore.RED + " You have entered an invalid user name or password.\n" + Fore.RESET + " ")
 
     def do_remove_user(self, _):
         '''Implementation of the remove user option.'''
@@ -141,14 +155,11 @@ class AdministratorShell(cmd.Cmd):
                 if self.main_service:
                     authenticator = self.main_service.getAuthenticator()
                     authenticator.removeUser(user_name, self.admin_token)
-                    print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " User: " + (user_name) + " removed.\n")
+                    logging.info(Fore.GREEN + " SUCCESSFUL OPERATION." + Fore.RESET + " User: " + (user_name) + " removed.\n")
             except IceFlix.TemporaryUnavailable:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable.\n")
-
-            except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator.\n")
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
         else:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You have entered an invalid user name.\n")
+            logging.error(Fore.RED + " You have entered an invalid user name.\n" + Fore.RESET + " ")
 
     def do_rename_media(self, _):
         '''Implementation of the rename media option.'''
@@ -161,12 +172,11 @@ class AdministratorShell(cmd.Cmd):
                 catalog = self.main_service.getCatalog()
                 if self.main_service:
                     catalog.renameTile(media_id, media_newname, self.admin_token)
-                    print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Renamed title with" + (media_id) + "id to " + (media_newname) +" name.")
-            except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
-
+                    logging.info(Fore.GREEN + " SUCCESSFUL OPERATION." + Fore.RESET + " Renamed title with" + (media_id) + "id to " + (media_newname) +" name.")
+            except IceFlix.TemporaryUnavailable:
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
             except IceFlix.WrongMediaId:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+                logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
 
     def do_upload_file(self, _):
         '''Implementation of the upload file option.'''
@@ -179,9 +189,9 @@ class AdministratorShell(cmd.Cmd):
             file_service = self.main_service.getFileService()
             if self.main_service:
                 file_service.uploadFile(file_uploader, self.admin_token)
-                print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Upload file.")
-        except IceFlix.Unauthorized:
-            print("ERROR. You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
+                logging.info(Fore.GREEN + " SUCCESSFUL OPERATION." + Fore.RESET + " Upload file.")
+        except IceFlix.TemporaryUnavailable:
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
 
     def do_remove_file(self, _):
         '''Implementation of the remove file option.'''
@@ -190,11 +200,9 @@ class AdministratorShell(cmd.Cmd):
         try:
             file_service = self.main_service.getFileService()
             file_service.removeFile(media_id, self.admin_token)
-            print(Fore.GREEN+"\n**SUCCESSFUL OPERATION**."+ Fore.RESET + " Remove media id:" + (media_id))
-        except IceFlix.Unauthorized:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized cause the introduced token is not an administrator. Please check it and try again.\n")
+            logging.info(Fore.GREEN + " SUCCESSFUL OPERATION." + Fore.RESET + " Remove media id:" + (media_id))
         except IceFlix.WrongMediaId:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+            logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
 
     def do_subscribeChannel_Authenticators(self, _):
         '''Implementation of the subscribe Authenticator channel option.'''
@@ -357,14 +365,16 @@ class UserShell(cmd.Cmd):
                     video = catalog.getTile(media[i], self.token)
                     print(f"{i}. ** {video.info.name} ** \n")
             else:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not found video. Please check it and try again. \n")
+                logging.error(Fore.RED + " Not found video." + Fore.RESET + " Please try again. \n")
             self.media = media
         except IceFlix.TemporaryUnavailable:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
+            logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
+            self.token = ""
         except IceFlix.Unauthorized:
             self.refresh_newtoken()
         except IceFlix.WrongMediaId:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+            logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
+            self.token = ""
 
     def do_search_by_tag(self, _):
         '''Implementation of the search by tag option.'''
@@ -391,22 +401,24 @@ class UserShell(cmd.Cmd):
                         print("Introduce the new tags you want to add:")
                         new_tags = input().split()
                         catalog.addTags(video.mediaId, new_tags, self.token)
-                        print(f"Added tag/s: {new_tags} in {video.info.name}")
+                        logging.info(Fore.GREEN + " SUCCESSFUL OPERATION. " + Fore.RESET + "Added tag/s: " + str(new_tags) + " in " + str(video.info.name))
                     elif option == 2:
                         print("Introduce the new tags you want to remove:")
                         delete_tags = input().split()
                         catalog.removeTags(video.mediaId, delete_tags, self.token)
-                        print(f"Remove tag/s: {delete_tags} in {video.info.name}")
+                        logging.info(Fore.GREEN + " SUCCESSFUL OPERATION. " + Fore.RESET + "Remove tag/s:" + str(delete_tags) + " in " + str(video.info.name))
                     else: pass
             else:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not found video. Please check it and try again. \n")
+                logging.error(Fore.RED + " Not found video." + Fore.RESET + " Please try again. \n")
             self.media = media
         except IceFlix.TemporaryUnavailable:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
+            logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
+            self.token = ""
         except IceFlix.Unauthorized:
            self.refresh_newtoken()
         except IceFlix.WrongMediaId:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+            logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
+            self.token = ""
 
     def do_download_file(self, _):
         '''Implementation of the download file option.'''
@@ -426,16 +438,15 @@ class UserShell(cmd.Cmd):
             except IceFlix.Unauthorized:
                 self.refresh_newtoken()
             except IceFlix.WrongMediaId:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+                logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
     
     def refresh_newtoken(self):
         try:
             if self.main_service:
                 authenticator = self.main_service.getAuthenticator()
                 self.token = authenticator.refreshAuthorization(self.user_name, self.hash_password)
-                print("new token" + self.token)
         except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please try again.\n")
+            logging.error(Fore.RED + " You are not authorized." + Fore.RESET + " Please try again.\n")
 
     def do_exit(self, _):
         '''Implementation of the exit option.'''
@@ -444,7 +455,6 @@ class UserShell(cmd.Cmd):
 
     def do_EOF(self, line):
         '''Implementation of the ctrl+D option to exit.'''
-        self.do_exit(line)
         print('\nClosed IceFlix User Interface.\n')
         return True
 
@@ -479,16 +489,16 @@ class ClientShell(cmd.Cmd):
                         authenticator = self.main_service.getAuthenticator()
                         self.token = authenticator.refreshAuthorization(user_name, hash_password)
                         if authenticator.isAuthorized(self.token):
-                            print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF USER:" + Fore.RESET + " " + (user_name) + Fore.GREEN + " **" + Fore.RESET + " ")
+                            logging.info(Fore.GREEN + " SUCCESSFUL AUTHENTICATION OF USER: " + Fore.RESET + " " + (user_name))
                             user_shell = UserShell(self.main_service, self.token, user_name, hash_password)
                             user_shell.cmdloop()
                             self.token = ""
                         else:
-                           print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " LOGIN NOT SUCCESFULL by user:" + user_name + ". Please check it and try again.\n")                
+                           logging.error(Fore.RED + " LOGIN NOT SUCCESFULL by user: "+ Fore.RESET + user_name + ". Please check it and try again.\n")                
                 except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
-                    print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
+                    logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
                 except IceFlix.Unauthorized:
-                    print(Fore.RED + "\n**ERROR**. " + Fore.RESET + user_name + "  is not authorized. Please check it and try again.\n")
+                    logging.error(Fore.RED + " You are not authorized." + Fore.RESET + " Please try again.\n")
             else:
                 print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You must introduce a username and a password. Please check it and try again.\n")
         else:
@@ -504,18 +514,18 @@ class ClientShell(cmd.Cmd):
                     hash_admin = hashlib.sha256(admin_token.encode()).hexdigest()
                     authenticator = self.main_service.getAuthenticator()
                     if authenticator.isAdmin(hash_admin):
-                        print(Fore.GREEN + "\n**SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR.**." + Fore.RESET + " ")
+                        logging.info(Fore.GREEN + " SUCCESSFUL AUTHENTICATION OF ADMINISTRATOR." + Fore.RESET + " ")
                         admin_shell = AdministratorShell(self.main_service, hash_admin, self.broker, self.catalog_adapter, self.autentic_adapter, self.file_adapter, self.fileuploader_adapter, self.announ_adapter)
                         admin_shell.cmdloop()
                     else:
-                        print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not successful administrator authentication.Please check it and try again.\n")
+                        logging.error(Fore.RED + " Not successful administrator authentication." + Fore.RESET + " Please check it and try again.\n")
             except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
+                logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
 
             except IceFlix.Unauthorized:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You are not authorized. Please try again.\n")
+                logging.error(Fore.RED + " You are not authorized." + Fore.RESET + " Please try again.\n")
         else:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " You have entered an invalid administrator token. Please check it and try again.\n")
+            logging.error(Fore.RED + " You have entered an invalid administrator token." + Fore.RESET + " Please check it and try again.\n")
 
     def do_anonimous_search(self, _):
         '''Implementation of the anonimous search option.'''
@@ -536,11 +546,11 @@ class ClientShell(cmd.Cmd):
                 for i in range(len(media)):
                     print(f"{i}. ** {media[i]} ** \n")
             else:
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Not found video. Please try again. \n")
+                logging.error(Fore.RED + " Not found video." + Fore.RESET + " Please try again. \n")
         except IceFlix.TemporaryUnavailable:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please try again.\n")
+            logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
         except IceFlix.WrongMediaId:
-            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Wrong media Id. Please check it and try again.\n")
+            logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
 
     def do_exit(self, _):
         '''Implementation of the exit option.'''
@@ -551,21 +561,6 @@ class ClientShell(cmd.Cmd):
         '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
         return True
-
-
-class Announcement(IceFlix.Announcement):   
-    def __init__(self, main_service, list_mainservices):
-        self.main_service = main_service
-        self.list_mainservices = list_mainservices
-        
-    def announce(self, service, serviceId, current=None):
-        if service.ice_isA('::IceFlix::Main'):
-            try:
-                self.main_service = IceFlix.MainPrx.checkedCast(service)
-                if serviceId not in list(self.list_mainservices):
-                    self.list_mainservices[serviceId] = self.main_service
-            except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
-                print(Fore.RED + "\n**ERROR**. " + Fore.RESET + " Temporary Unavailable. Please check it and try again.\n")
 
 
 class Client(Ice.Application):
@@ -580,9 +575,9 @@ class Client(Ice.Application):
     def get_topic_manager(self): 
         key = 'IceStorm.TopicManager.Proxy'
         counter = 0
-        print("-----------------------------------------")
-        print("Connecting with IceStorm...")
-        print("-----------------------------------------")
+        print("----------------------------------------------------------------------")
+        logging.info(" Connecting with IceStorm...")
+        print("----------------------------------------------------------------------")
 
         proxy = self.communicator().propertyToProxy(key)
         if proxy is None:
@@ -607,10 +602,10 @@ class Client(Ice.Application):
                         topic_mgr = self.get_topic_manager() 
                         broker = self.communicator()
                         if not topic_mgr:
-                            print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
+                            logging.error(Fore.RED + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT." + Fore.RESET + "PLEASE TRY AGAIN LATER :( .")
                             return 2
                         else:
-                            print("\nConnection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
+                            logging.info(" Connection with IceStorm..." + Fore.GREEN + " ** SUCCESSFULL **\n" + Fore.RESET)
                         try:
                             topic_announcement = topic_mgr.retrieve('Announcements')
                         except IceStorm.NoSuchTopic:
@@ -620,15 +615,15 @@ class Client(Ice.Application):
                         announ_prx = announ_adapter.addWithUUID(announ_serv)
                         topic_announcement.subscribeAndGetPublisher({}, announ_prx)
                         counter = 0
-                        print("-----------------------------------------")
-                        print("Connecting with IceFlix...")
-                        print("-----------------------------------------\n")
+                        print("----------------------------------------------------------------------")
+                        logging.info(" Connecting with IceFlix...")
+                        print("----------------------------------------------------------------------")
                         try:
                             while True:
                                 self.main_service = self.get_random_main(self.list_mainservices)
                                 topic_mgr.ice_ping()
                                 if self.main_service:
-                                    print("\nIceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" ** SUCCESSFULLY CONNECTED **" + Fore.RESET + " ")
+                                    logging.info(" IceFLix Main Service: " + str(self.main_service) + Fore.GREEN +" ** SUCCESSFULLY CONNECTED **" + Fore.RESET + " ")
                                     print("\nInitializing IceFlix...")
                                     time.sleep(3.0)
                                     cliente_shell = ClientShell(self.main_service, broker)
@@ -636,20 +631,21 @@ class Client(Ice.Application):
                                     finish = True
                                     break
                                 else:
-                                    print("Ups there are not main services. Please wait a moment for an available main service... ** " + Fore.RED + str(20-(counter * 5)) + Fore.RESET +" seconds left until disconnection **")
+                                    logging.warning(Fore.RESET + " Ups there are not main services. Please wait a moment for an available main service... ** " + Fore.RED + str(20-(counter * 5)) + Fore.RESET +" seconds left until disconnection **")
                                     counter += 1
                                     time.sleep(5.0)
                                 if counter == 4:
-                                    print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED. THERE ARE NOT AVAILABLE MAINS AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
+                                    logging.error(Fore.RED + " CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED." + Fore.RESET +  " THERE ARE NOT AVAILABLE MAINS AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
                                     return 2
                         except Ice.ConnectionRefusedException:
-                            print("Ups, IceStorm is disconnected...")
+                            logging.warning(" Ups, IceStorm is disconnected...")
 
                         topic_announcement.unsubscribe(announ_prx)   
                     except Ice.ConnectionRefusedException:
                         counter_re += 1
-                        print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused. You have " + Fore.RED + str(5-counter_re) + Fore.RESET +" attempts left to try a reconnection...")
+                        logging.error(Fore.RED + " Connection with icestorm refused." + Fore.RESET +  "You have " + Fore.RED + str(5-counter_re) + Fore.RESET +" attempts left to try a reconnection...")
                         time.sleep(5.0)
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG, format= '%(asctime)s' +' ** %(levelname)s **' + '%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     sys.exit(Client().main(sys.argv))
