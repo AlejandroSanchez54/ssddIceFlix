@@ -1,17 +1,13 @@
 #!/usr/bin/python3
 
 '''Implememtatiom of the client of the application iceflix. Distributed System 2022/2023 by Alejandro Sánchez Arcos''' #pylint: disable=C0301
-#pylint: disable=C0200
-#pylint: disable=W0613
-#pylint: disable=W0201
-#pylint: disable=R1710
-#pylint: disable=R0201
-#pylint: disable=C0410
-#pylint: disable=E1101
-#pylint: disable=C0103
-#pylint: disable=C0303
-#pylint: disable=E0213
 #pylint: disable=W0311
+#pylint: disable=W1201
+#pylint: disable=C0103
+#pylint: disable=E1101
+#pylint: disable=W0613
+#pylint: disable=R0201
+
 
 import sys, cmd, time, getpass, hashlib, threading, random, logging
 from colorama import Fore
@@ -25,12 +21,14 @@ except ImportError:
     Ice.loadSlice(os.path.join(os.path.dirname(__file__), "iceflix.ice"))
     import IceFlix
 
-class Announcement(IceFlix.Announcement):   
+class Announcement(IceFlix.Announcement):
+    '''Implementation of Announcement servant.'''
     def __init__(self, main_service, list_mainservices):
         self.main_service = main_service
         self.list_mainservices = list_mainservices
-        
+
     def announce(self, service, serviceId, current=None):
+        '''Implementation of announce.'''
         if service.ice_isA('::IceFlix::Main'):
             try:
                 self.main_service = IceFlix.MainPrx.checkedCast(service)
@@ -215,7 +213,7 @@ class AdministratorShell(cmd.Cmd):
             topic_authentic = topic_mgr.retrieve('UserUpdates')
         except IceStorm.NoSuchTopic:
             topic_authentic = topic_mgr.create('UserUpdates')
-        
+
         autentic_servant = ChannelAuthenticators()
         self.autentic_adapter.activate()
         autentic_prx = self.autentic_adapter.addWithUUID(autentic_servant)
@@ -232,7 +230,7 @@ class AdministratorShell(cmd.Cmd):
         '''Implementation of the subscribe Media Catalog channel option.'''
         print("Press Ctrl+D if you want to stop and unsubscribe the media catalogs channel:")
         topic_mgr = self.get_topic_manager()
-        
+
         if not topic_mgr:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
             return 2
@@ -240,7 +238,7 @@ class AdministratorShell(cmd.Cmd):
             topic_catalog = topic_mgr.retrieve('CatalogUpdates')
         except IceStorm.NoSuchTopic:
             topic_catalog = topic_mgr.create('CatalogUpdates')
-        
+
         catalog_servant = ChannelMediaCatalogs()
         self.catalog_adapter.activate()
         catalog_prx = self.catalog_adapter.addWithUUID(catalog_servant)
@@ -248,11 +246,10 @@ class AdministratorShell(cmd.Cmd):
 
         try:
             while True:
-                print("ENTRO")
                 EOF_error = input()
         except (EOFError):
             topic_catalog.unsubscribe(catalog_prx)
-    
+
     def do_subscribeChannel_FileServices(self, _):
         '''Implementation of the subscribe File Service channel option.'''
         print("Press Ctrl+D if you want to stop and unsubscribe the file services channel:")
@@ -264,7 +261,7 @@ class AdministratorShell(cmd.Cmd):
             topic_file = topic_mgr.retrieve('FileAvailabilityAnnounce')
         except IceStorm.NoSuchTopic:
             topic_file = topic_mgr.create('FileAvailabilityAnnounce')
-        
+
         file_servant = ChannelFileServices()
         self.file_adapter.activate()
         file_prx = self.file_adapter.addWithUUID(file_servant)
@@ -289,7 +286,7 @@ class AdministratorShell(cmd.Cmd):
             topic_announ = topic_mgr.retrieve('Announcements')
         except IceStorm.NoSuchTopic:
             topic_announ = topic_mgr.create('Announcements')
-        
+
         announ_servant = ChannelAnnouncements()
         self.announ_adapter.activate()
         announ_prx = self.announ_adapter.addWithUUID(announ_servant)
@@ -320,13 +317,13 @@ class AdministratorShell(cmd.Cmd):
         if counter == 3:
             print(Fore.RED + "\n**ERROR**. " + Fore.RESET + "Connection with icestorm refused.")
             return None
-    
+
     def do_exit(self, _):
         '''Implementation of the exit option.'''
         'Close the administrator shell and EXIT.'
         print('\nClosed IceFlix Administrator Interface.\n')
         return True
-    
+
     def do_EOF(self, line):
         '''Implementation of the ctrl+D option to exit.'''
         self.do_exit(line)
@@ -439,7 +436,7 @@ class UserShell(cmd.Cmd):
                 self.refresh_newtoken()
             except IceFlix.WrongMediaId:
                 logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
-    
+
     def refresh_newtoken(self):
         try:
             if self.main_service:
@@ -494,7 +491,7 @@ class ClientShell(cmd.Cmd):
                             user_shell.cmdloop()
                             self.token = ""
                         else:
-                           logging.error(Fore.RED + " LOGIN NOT SUCCESFULL by user: "+ Fore.RESET + user_name + ". Please check it and try again.\n")                
+                           logging.error(Fore.RED + " LOGIN NOT SUCCESFULL by user: "+ Fore.RESET + user_name + ". Please check it and try again.\n")
                 except (IceFlix.TemporaryUnavailable, Ice.UnknownException):
                     logging.error(Fore.RED + " Temporary Unavailable." + Fore.RESET + " Please check it and try again.\n")
                 except IceFlix.Unauthorized:
@@ -571,8 +568,8 @@ class Client(Ice.Application):
         self.media = []
         self.main_service = None
         self.list_mainservices = {}
-        
-    def get_topic_manager(self): 
+
+    def get_topic_manager(self):
         key = 'IceStorm.TopicManager.Proxy'
         counter = 0
         print("----------------------------------------------------------------------")
@@ -584,7 +581,7 @@ class Client(Ice.Application):
             print("property '{}' not set".format(key))
             return 2
         else:
-            return IceStorm.TopicManagerPrx.checkedCast(proxy) 
+            return IceStorm.TopicManagerPrx.checkedCast(proxy)
 
     def get_random_main(self, list_mainservices):
         mains = list(self.list_mainservices.items())
@@ -599,7 +596,7 @@ class Client(Ice.Application):
         finish = False
         while counter_re < 5 and finish == False:
                     try:
-                        topic_mgr = self.get_topic_manager() 
+                        topic_mgr = self.get_topic_manager()
                         broker = self.communicator()
                         if not topic_mgr:
                             logging.error(Fore.RED + "CONNECTION REFUSED TO ICEFLIX CAUSE ICESTORM IS NOT AVAILABLE AT THIS MOMENT." + Fore.RESET + "PLEASE TRY AGAIN LATER :( .")
@@ -640,12 +637,12 @@ class Client(Ice.Application):
                         except Ice.ConnectionRefusedException:
                             logging.warning(" Ups, IceStorm is disconnected...")
 
-                        topic_announcement.unsubscribe(announ_prx)   
+                        topic_announcement.unsubscribe(announ_prx)
                     except Ice.ConnectionRefusedException:
                         counter_re += 1
                         logging.error(Fore.RED + " Connection with icestorm refused." + Fore.RESET +  "You have " + Fore.RED + str(5-counter_re) + Fore.RESET +" attempts left to try a reconnection...")
                         time.sleep(5.0)
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format= '%(asctime)s' +' ** %(levelname)s **' + '%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
+    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s' +' ** %(levelname)s **' + '%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     sys.exit(Client().main(sys.argv))
