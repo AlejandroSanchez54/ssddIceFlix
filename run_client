@@ -1,2 +1,2 @@
 #!/usr/bin/env bash
-iceflix
+iceflix --Ice.Config=configs/client.config
