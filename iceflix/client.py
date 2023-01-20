@@ -72,18 +72,17 @@ class ChannelAuthenticators(IceFlix.UserUpdate):
 
 class ChannelMediaCatalogs(IceFlix.CatalogUpdate):
     '''Implementation of CatalogUpdate servant.'''
-
     def renameTile(self, mediaId, newName, serviceId, current=None):
         '''Implementation of the channel info for renameTile.'''
         logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call renameTile for media id: " + mediaId + ". The new name is: " + newName + ".")
 
     def addTags(self, mediaId, user, tags, serviceId, current=None):
         '''Implementation of the channel info for addTags.'''
-        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call addTags for media id: " + mediaId + " and user" + user + " . The tags added are: " + str(tags)+ ".")
+        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call addTags for media id: " + mediaId + " and user: " + user + " . The tags added are: " + str(tags)+ ".")
 
     def removeTags(self, mediaId, user, tags, serviceId, current=None):
         '''Implementation of the channel info for removeTags.'''
-        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call removeTags for media id: " + mediaId + " and user" + user + " . The tags removed are: " + str(tags)+ ".")
+        logging.info(" The media catalog service with id: " + Fore.BLUE + serviceId + Fore.RESET +" call removeTags for media id: " + mediaId + " and user: " + user + " . The tags removed are: " + str(tags)+ ".")
 
 
 class ChannelFileServices(IceFlix.FileAvailabilityAnnounce):
@@ -221,7 +220,6 @@ class AdministratorShell(cmd.Cmd):
 
         try:
             while True:
-                print("ENTRO")
                 EOF_error = input()
         except (EOFError):
             topic_authentic.unsubscribe(autentic_prx)
@@ -299,7 +297,8 @@ class AdministratorShell(cmd.Cmd):
             topic_announ.unsubscribe(announ_prx)
 
     def get_topic_manager(self):
-        key = 'IceStorm.TopicManager.Proxy'
+        """Implementation of the get topic manager method."""
+        key = 'IceStorm.TopicManager'
         counter = 0
         print("Connecting with IceStorm...")
         while counter < 3:
@@ -438,6 +437,7 @@ class UserShell(cmd.Cmd):
                 logging.error(Fore.RED + " Wrong media Id. " + Fore.RESET + "Please check it and try again.\n")
 
     def refresh_newtoken(self):
+        """Implementation of the refresh new token method."""
         try:
             if self.main_service:
                 authenticator = self.main_service.getAuthenticator()
@@ -570,12 +570,11 @@ class Client(Ice.Application):
         self.list_mainservices = {}
 
     def get_topic_manager(self):
-        key = 'IceStorm.TopicManager.Proxy'
-        counter = 0
+        """Implementation of the get topic manager method."""
+        key = 'IceStorm.TopicManager'
         print("----------------------------------------------------------------------")
         logging.info(" Connecting with IceStorm...")
         print("----------------------------------------------------------------------")
-
         proxy = self.communicator().propertyToProxy(key)
         if proxy is None:
             print("property '{}' not set".format(key))
@@ -584,6 +583,7 @@ class Client(Ice.Application):
             return IceStorm.TopicManagerPrx.checkedCast(proxy)
 
     def get_random_main(self, list_mainservices):
+        """Implementation of the get random main method."""
         mains = list(self.list_mainservices.items())
         if len(mains) != 0:
                 random_main = random.choice(mains)
@@ -594,7 +594,7 @@ class Client(Ice.Application):
         announ_adapter = self.communicator().createObjectAdapterWithEndpoints("AnnouncementAdapter", "tcp")
         counter_re = 0
         finish = False
-        while counter_re < 5 and finish == False:
+        while counter_re < 5 and finish is False:
                     try:
                         topic_mgr = self.get_topic_manager()
                         broker = self.communicator()
@@ -642,7 +642,6 @@ class Client(Ice.Application):
                         counter_re += 1
                         logging.error(Fore.RED + " Connection with icestorm refused." + Fore.RESET +  "You have " + Fore.RED + str(5-counter_re) + Fore.RESET +" attempts left to try a reconnection...")
                         time.sleep(5.0)
+                        if counter_re == 5:
+                            logging.error(Fore.RED + " CONNECTION REFUSED TO ICEFLIX TIMER EXPIRED." + Fore.RESET +  " ICESTORM IS NOT AVAILABLE AT THIS MOMENT. PLEASE TRY AGAIN LATER :( .")
 
-if __name__ == "__main__":
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s' +' ** %(levelname)s **' + '%(message)s', datefmt='%Y-%m-%d %H:%M:%S')
-    sys.exit(Client().main(sys.argv))
